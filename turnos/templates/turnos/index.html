@@ -1,0 +1,94 @@
+{% extends "turnos/base.html" %}
+{% block content %}
+<header class="mb-5">
+  <h1 class="text-2xl sm:text-3xl font-bold">{{ trainer_name }}</h1>
+  <p class="text-slate-600">{{ trainer_bio }}</p>
+</header>
+
+{% for m in messages %}
+<div class="mb-3 rounded-lg px-4 py-3 text-sm {% if m.tags == 'error' %}bg-red-100 text-red-800{% else %}bg-emerald-100 text-emerald-800{% endif %}" role="alert">{{ m }}</div>
+{% endfor %}
+
+<section class="mb-6 bg-white rounded-xl shadow p-4">
+  {% if alumno %}
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <p class="font-semibold">{{ alumno.nombre }} {{ alumno.apellido }}</p>
+      <p class="text-sm text-slate-600">
+        Saldo: <strong>{{ alumno.saldo }}</strong> clase{{ alumno.saldo|pluralize }}
+        · Reservadas: <strong>{{ alumno.clases_comprometidas }}</strong>
+        · Disponibles: <strong>{{ alumno.saldo_disponible }}</strong>
+      </p>
+      {% if alumno.saldo_disponible <= 0 %}
+      <p class="text-sm text-amber-700 mt-1">Sin clases disponibles, coordiná el pago con tu entrenador</p>
+      {% endif %}
+    </div>
+    <form method="post" action="{% url 'salir' %}">{% csrf_token %}<input type="hidden" name="semana" value="{{ lunes|date:'Y-m-d' }}">
+      <button class="text-sm text-slate-500 underline">No soy yo</button></form>
+  </div>
+  {% else %}
+  <form method="post" action="{% url 'identificar' %}" class="flex flex-col sm:flex-row gap-2 sm:items-end">
+    {% csrf_token %}<input type="hidden" name="semana" value="{{ lunes|date:'Y-m-d' }}">
+    <div class="flex-1">
+      <label for="dni" class="block text-sm font-medium mb-1">Ingresá tu DNI para reservar</label>
+      <input id="dni" name="dni" inputmode="numeric" autocomplete="off" required placeholder="Ej: 30123456"
+             class="w-full rounded-lg border border-slate-300 px-3 py-3 text-base">
+    </div>
+    <button class="bg-emerald-600 text-white rounded-lg px-6 py-3 font-semibold">Continuar</button>
+  </form>
+  {% endif %}
+</section>
+
+<nav class="flex items-center justify-between mb-4" aria-label="Semana">
+  <a href="?semana={{ semana_anterior|date:'Y-m-d' }}" class="px-4 py-2 rounded-lg bg-white shadow text-sm">← Anterior</a>
+  <div class="text-center">
+    <p class="font-semibold">{{ rango }}</p>
+    {% if lunes != semana_actual %}<a href="{% url 'index' %}" class="text-xs text-emerald-700 underline">Volver a esta semana</a>{% endif %}
+  </div>
+  <a href="?semana={{ semana_siguiente|date:'Y-m-d' }}" class="px-4 py-2 rounded-lg bg-white shadow text-sm">Siguiente →</a>
+</nav>
+
+<div class="flex gap-4 text-xs text-slate-600 mb-3">
+  <span><span class="inline-block w-3 h-3 rounded bg-emerald-200 align-middle"></span> Disponible</span>
+  <span><span class="inline-block w-3 h-3 rounded bg-yellow-200 align-middle"></span> Últimos lugares</span>
+  <span><span class="inline-block w-3 h-3 rounded bg-slate-200 align-middle"></span> Completa o pasada</span>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-7 gap-3">
+  {% for dia in dias %}
+  <section class="{% if dia.es_hoy %}ring-2 ring-emerald-500{% endif %} bg-white rounded-xl shadow p-3">
+    <h2 class="font-semibold text-sm mb-2">{{ dia.nombre }} <span class="text-slate-500 font-normal">{{ dia.fecha|date:"d/m" }}</span></h2>
+    <div class="space-y-2">
+      {% for it in dia.items %}
+      {% with c=it.clase %}
+      <div class="rounded-lg p-2 text-sm
+        {% if it.reservada %}bg-sky-100 border border-sky-400{% elif c.color == 'verde' %}bg-emerald-100{% elif c.color == 'amarillo' %}bg-yellow-100{% else %}bg-slate-200 text-slate-500{% endif %}">
+        <div class="flex justify-between font-semibold"><span>{{ c.hora_inicio|time:"H:i" }}</span>
+          <span class="font-normal text-xs">{{ c.duracion_min }} min</span></div>
+        <p class="text-xs">
+          {% if c.estado == 'cancelada' %}Cancelada
+          {% elif c.ya_paso %}Finalizada
+          {% else %}{{ c.lugares_libres }} de {{ c.cupo_maximo }} lugares{% endif %}
+        </p>
+        {% if it.reservada %}<p class="text-xs font-semibold text-sky-800 mt-1">✓ Reservada</p>{% endif %}
+        {% if it.puede_cancelar %}
+        <form method="post" action="{% url 'cancelar' c.pk %}" class="mt-1" onsubmit="return confirm('¿Cancelar tu reserva?')">
+          {% csrf_token %}<input type="hidden" name="semana" value="{{ lunes|date:'Y-m-d' }}">
+          <button class="w-full rounded bg-white border border-sky-400 text-sky-800 py-2 text-xs font-semibold">Cancelar reserva</button></form>
+        {% elif it.puede_reservar and alumno %}
+        <form method="post" action="{% url 'reservar' c.pk %}" class="mt-1">
+          {% csrf_token %}<input type="hidden" name="semana" value="{{ lunes|date:'Y-m-d' }}">
+          <button class="w-full rounded bg-emerald-600 text-white py-2 text-xs font-semibold">Reservar</button></form>
+        {% elif it.puede_reservar %}
+        <p class="text-xs mt-1 text-slate-600">Identificate para reservar</p>
+        {% endif %}
+      </div>
+      {% endwith %}
+      {% empty %}
+      <p class="text-xs text-slate-400">Sin clases</p>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<p>Alumno: <strong>{{ alumno }}</strong> — saldo actual: {{ alumno.saldo }} clases.</p>
+<form method="post">{% csrf_token %}
+  <input type="hidden" name="action" value="registrar_pago">
+  <input type="hidden" name="_selected_action" value="{{ alumno.pk }}">
+  <input type="hidden" name="aplicar" value="1">
+  {{ form.as_p }}
+  <input type="submit" value="Registrar pago" class="default">
+</form>
+{% endblock %}

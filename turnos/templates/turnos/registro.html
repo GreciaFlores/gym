@@ -1,0 +1,22 @@
+{% extends "turnos/base.html" %}
+{% block title %}Registro · {{ trainer_name }}{% endblock %}
+{% block content %}
+<div class="max-w-md mx-auto bg-white rounded-xl shadow p-6">
+  <h1 class="text-xl font-bold mb-1">Todavía no te conocemos</h1>
+  <p class="text-slate-600 mb-4">No encontramos el DNI <strong>{{ dni }}</strong>. Completá tus datos para registrarte.</p>
+  <form method="post" class="space-y-3">
+    {% csrf_token %}
+    {% for field in form %}
+    <div>
+      <label for="{{ field.id_for_label }}" class="block text-sm font-medium mb-1">{{ field.label }}</label>
+      <input type="{% if field.name == 'telefono' %}tel{% else %}text{% endif %}" name="{{ field.html_name }}" id="{{ field.id_for_label }}"
+             value="{{ field.value|default_if_none:'' }}" required
+             class="w-full rounded-lg border border-slate-300 px-3 py-3 text-base">
+      {% for e in field.errors %}<p class="text-sm text-red-600">{{ e }}</p>{% endfor %}
+    </div>
+    {% endfor %}
+    <button class="w-full bg-emerald-600 text-white rounded-lg py-3 font-semibold">Registrarme</button>
+    <a href="{% url 'index' %}" class="block text-center text-sm text-slate-500">Volver al calendario</a>
+  </form>
+</div>
+{% endblock %}

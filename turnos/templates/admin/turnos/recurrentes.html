@@ -1,0 +1,8 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<p>Crea clases para los días y horas elegidos. Las que ya existen se saltean.</p>
+<form method="post">{% csrf_token %}
+  {{ form.as_p }}
+  <input type="submit" value="Crear clases" class="default">
+</form>
+{% endblock %}
