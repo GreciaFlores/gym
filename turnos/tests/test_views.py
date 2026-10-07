@@ -93,3 +93,16 @@ def test_admin_changelists(admin_client, alumno_con_saldo, hacer_clase):
     for m in ('alumno', 'clase', 'reserva', 'movimiento'):
         assert admin_client.get(f'/admin/turnos/{m}/').status_code == 200
     assert admin_client.get('/admin/turnos/alumno/?q=30111222').status_code == 200
+
+
+def test_database_url_vacia_usa_sqlite(monkeypatch):
+    import importlib
+
+    from config import settings as cfg
+    monkeypatch.setenv('DATABASE_URL', '')
+    try:
+        recargado = importlib.reload(cfg)
+        assert recargado.DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3'
+    finally:
+        monkeypatch.undo()
+        importlib.reload(cfg)
