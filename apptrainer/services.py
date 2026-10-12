@@ -1,0 +1,156 @@
+import datetime as dt
+import io
+from decimal import Decimal
+
+from django.db import transaction
+from django.db.models import Count
+from openpyxl import Workbook
+from openpyxl.chart import LineChart, Reference
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
+
+from .models import Ejercicio, EjercicioHecho, RegistroPeso, Rutina, Sesion
+
+VENTANA_MEDIA = 4
+
+
+def rutina_activa(usuario):
+    return Rutina.objects.filter(usuario=usuario, activa=True).first()
+
+
+def lunes_de(fecha):
+    return fecha - dt.timedelta(days=fecha.weekday())
+
+
+def dia_de_hoy(rutina, hoy):
+    return rutina.dias.filter(dia_semana=hoy.weekday()).first()
+
+
+def proximo_dia(rutina, hoy):
+    """Próximo día de la rutina con día de semana fijo, contando desde mañana."""
+    dias = {d.dia_semana: d for d in rutina.dias.filter(dia_semana__isnull=False)}
+    for adelante in range(1, 8):
+        fecha = hoy + dt.timedelta(days=adelante)
+        if fecha.weekday() in dias:
+            return dias[fecha.weekday()], fecha
+    return None, None
+
+
+def total_ejercicios(dia):
+    return Ejercicio.objects.filter(bloque__dia=dia).count()
+
+
+def hechos_de(usuario, dia, fecha):
+    """IDs de ejercicios marcados para ese día en esa fecha."""
+    return set(
+        EjercicioHecho.objects.filter(
+            sesion__usuario=usuario, sesion__dia=dia, sesion__fecha=fecha
+        ).values_list('ejercicio_id', flat=True)
+    )
+
+
+@transaction.atomic
+def alternar_ejercicio(usuario, ejercicio, fecha):
+    """Marca o desmarca un ejercicio; devuelve (hecho, hechos, total, completada)."""
+    dia = ejercicio.bloque.dia
+    sesion, _ = Sesion.objects.get_or_create(usuario=usuario, dia=dia, fecha=fecha)
+    hecho, creado = EjercicioHecho.objects.get_or_create(sesion=sesion, ejercicio=ejercicio)
+    if not creado:
+        hecho.delete()
+    total = total_ejercicios(dia)
+    hechos = sesion.hechos.count()
+    completada = total > 0 and hechos >= total
+    if sesion.completada != completada:
+        sesion.completada = completada
+        sesion.save(update_fields=['completada'])
+    return creado, hechos, total, completada
+
+
+def resumen_semana(usuario, rutina, hoy):
+    """Días de la rutina completados esta semana vs. días de la rutina."""
+    lunes = lunes_de(hoy)
+    domingo = lunes + dt.timedelta(days=6)
+    hechas = Sesion.objects.filter(
+        usuario=usuario, dia__rutina=rutina, fecha__range=(lunes, domingo), completada=True
+    ).values('dia').distinct().count()
+    return hechas, rutina.dias.count()
+
+
+def estado_semana(usuario, rutina, hoy):
+    """{dia_id: Sesion} de la semana actual, con la cantidad de ejercicios hechos."""
+    lunes = lunes_de(hoy)
+    sesiones = Sesion.objects.filter(
+        usuario=usuario, dia__rutina=rutina, fecha__range=(lunes, lunes + dt.timedelta(days=6))
+    ).annotate(n_hechos=Count('hechos')).order_by('fecha')
+    return {s.dia_id: s for s in sesiones}
+
+
+def serie_peso(usuario):
+    """Registros de peso en orden cronológico con variación y media móvil."""
+    registros = list(RegistroPeso.objects.filter(usuario=usuario).order_by('fecha'))
+    serie = []
+    for i, r in enumerate(registros):
+        ventana = registros[max(0, i - VENTANA_MEDIA + 1): i + 1]
+        media = sum((x.kg for x in ventana), Decimal(0)) / len(ventana)
+        serie.append({
+            'id': r.pk,
+            'fecha': r.fecha,
+            'kg': r.kg,
+            'nota': r.nota,
+            'variacion': (r.kg - registros[i - 1].kg) if i else None,
+            'media': media.quantize(Decimal('0.01')),
+        })
+    return serie
+
+
+def exportar_pesos_excel(usuario):
+    """Genera un .xlsx con el historial de peso y una gráfica; devuelve bytes."""
+    serie = serie_peso(usuario)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Peso'
+
+    lila, borde = '7C5CD6', Side(style='thin', color='E4DBFA')
+    ws.append(['Fecha', 'Peso (kg)', 'Variación (kg)', f'Media {VENTANA_MEDIA} registros (kg)', 'Nota'])
+    for c in ws[1]:
+        c.font = Font(bold=True, color='FFFFFF')
+        c.fill = PatternFill('solid', fgColor=lila)
+        c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    ws.row_dimensions[1].height = 32
+
+    for fila in serie:
+        ws.append([
+            fila['fecha'], float(fila['kg']),
+            float(fila['variacion']) if fila['variacion'] is not None else None,
+            float(fila['media']), fila['nota'],
+        ])
+    for row in ws.iter_rows(min_row=2):
+        row[0].number_format = 'DD/MM/YYYY'
+        for c in row[1:4]:
+            c.number_format = '0.00'
+        for c in row:
+            c.border = Border(bottom=borde)
+            if row[0].row % 2 == 0:
+                c.fill = PatternFill('solid', fgColor='F7F3FF')
+
+    for i, ancho in enumerate([14, 12, 15, 22, 40], start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+    ws.freeze_panes = 'A2'
+
+    if len(serie) >= 2:
+        grafica = LineChart()
+        grafica.title = 'Evolución del peso'
+        grafica.y_axis.title = 'kg'
+        grafica.x_axis.number_format = 'dd/mm'
+        grafica.height, grafica.width = 8, 18
+        ultima = len(serie) + 1
+        grafica.add_data(Reference(ws, min_col=2, min_row=1, max_row=ultima), titles_from_data=True)
+        grafica.add_data(Reference(ws, min_col=4, min_row=1, max_row=ultima), titles_from_data=True)
+        grafica.set_categories(Reference(ws, min_col=1, min_row=2, max_row=ultima))
+        grafica.series[0].graphicalProperties.line.solidFill = lila
+        grafica.series[1].graphicalProperties.line.solidFill = 'F58FB5'
+        ws.add_chart(grafica, 'G2')
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()

@@ -1,0 +1,16 @@
+{% load static %}{
+  "name": "AppTrainer",
+  "short_name": "AppTrainer",
+  "description": "Tu rutina semanal y tu registro de peso.",
+  "lang": "es",
+  "start_url": "{% url 'apptrainer:hoy' %}",
+  "scope": "{% url 'apptrainer:hoy' %}",
+  "display": "standalone",
+  "background_color": "#f6f1ff",
+  "theme_color": "#7c5cd6",
+  "icons": [
+    {"src": "{% static 'apptrainer/icon-192.png' %}", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "{% static 'apptrainer/icon-512.png' %}", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "{% static 'apptrainer/icon-maskable-512.png' %}", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

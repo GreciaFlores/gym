@@ -1,0 +1,56 @@
+{% extends 'apptrainer/base.html' %}
+{% block title %}{{ dia.titulo }} · AppTrainer{% endblock %}
+{% block content %}
+<a class="back" href="{% url 'apptrainer:semana' %}"><svg class="icon"><use href="#i-back"/></svg>Mi semana</a>
+<h1 class="page-title">{{ dia.titulo }}</h1>
+<p class="page-sub">{{ dia.enfoque }}{% if dia.enfoque %} · {% endif %}{{ fecha|date:"j \d\e F" }}</p>
+
+<div class="progress-sticky">
+  <div class="progress-card" data-progress>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ porcentaje }}"><i style="width: {{ porcentaje }}%"></i></div>
+    <div class="progress-num" data-num>{{ n_hechos }}/{{ total }}</div>
+  </div>
+</div>
+
+<div class="stack">
+  <div class="done-banner {% if total and n_hechos == total %}show{% endif %}" data-done>
+    <svg class="icon"><use href="#i-check"/></svg>¡Sesión completa! Gran trabajo 💜
+  </div>
+
+  {% for b in bloques %}
+  <section class="block block-{{ b.tipo }}">
+    <div class="block-head">
+      <h2>{{ b.titulo }}</h2>
+      <span class="block-count" data-count>{{ b.hechos }}/{{ b.total }}</span>
+    </div>
+    <div class="exercises">
+      {% for item in b.items %}
+        {% if item|length > 1 %}<div class="combo"><span class="combo-label">Combinado</span>{% endif %}
+        {% for e in item %}
+        <article class="ex {% if e.hecho %}is-done{% endif %}">
+          <form method="post" action="{% url 'apptrainer:alternar' e.pk %}" data-toggle>
+            {% csrf_token %}
+            <button class="check" type="submit" aria-label="Marcar {{ e.nombre }}"><svg class="icon"><use href="#i-check"/></svg></button>
+          </form>
+          <div class="ex-body">
+            <div class="ex-name">{{ e.nombre }}</div>
+            {% if e.prescripcion or e.material or e.url_video %}
+            <div class="ex-meta">
+              {% if e.prescripcion %}<span class="pill">{{ e.prescripcion }}</span>{% endif %}
+              {% if e.material %}<span class="pill pill-sky">{{ e.material }}</span>{% endif %}
+              {% if e.url_video %}<a class="pill pill-pink video" href="{{ e.url_video }}" target="_blank" rel="noopener noreferrer"><svg class="icon"><use href="#i-play"/></svg>Video</a>{% endif %}
+            </div>
+            {% endif %}
+            {% if e.nota %}<p class="ex-note">{{ e.nota }}</p>{% endif %}
+          </div>
+        </article>
+        {% endfor %}
+        {% if item|length > 1 %}</div>{% endif %}
+      {% endfor %}
+    </div>
+  </section>
+  {% empty %}
+  <section class="card empty"><strong>Este día aún no tiene ejercicios</strong></section>
+  {% endfor %}
+</div>
+{% endblock %}

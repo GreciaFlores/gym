@@ -1,3 +1,27 @@
+# AppTrainer · Rutina y peso
+
+App web (instalable en el celular) para guardar la **rutina semanal** y llevar el **registro de peso**. Vive en este mismo proyecto, en `/app/`, junto al módulo de reservas de abajo.
+
+- **Hoy:** qué día toca, progreso y resumen de la semana.
+- **Semana:** los días de la rutina con su estado (pendiente / en curso / completado).
+- **Día:** movilidad, zona media y trabajo principal, con checks, ejercicios combinados, material y videos.
+- **Peso:** registro semanal, gráfica con media móvil, historial y **descarga en Excel**.
+- Login con usuario y contraseña. Cada usuario ve **solo sus datos** (listo para que un entrenador sume alumnos).
+- Panel `/admin/` para editar rutinas, días, bloques y ejercicios.
+
+```bash
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py seed_rutina --usuario TU_USUARIO   # carga la rutina de 3 días
+python manage.py runserver                           # http://127.0.0.1:8000/app/
+```
+
+Publicación en producción: [docs/publicar-en-render.md](docs/publicar-en-render.md) (`render.yaml` incluido).
+
+> **Para evolucionar:** `Ejercicio.prescripcion` es texto libre (`3x10`, `3xfallo`). La próxima fase agrega series reales (kg y reps por serie) en un modelo aparte.
+
+---
+
 # Gym · Reservas de clases (MVP)
 
 Landing para que los alumnos de un entrenador personal vean las clases de la semana, se identifiquen con su DNI y reserven. El entrenador gestiona todo desde el Django Admin.

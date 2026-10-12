@@ -1,0 +1,31 @@
+{% extends 'apptrainer/base.html' %}
+{% block title %}Semana · AppTrainer{% endblock %}
+{% block content %}
+<h1 class="page-title">Mi semana</h1>
+<p class="page-sub">{% if rutina %}{{ rutina.nombre }}{% else %}Sin rutina activa{% endif %}</p>
+
+{% if filas %}
+<ul class="day-list">
+  {% for f in filas %}
+  <li>
+    <a class="day-card {% if f.es_hoy %}is-today{% endif %}" href="{% url 'apptrainer:dia' f.dia.pk %}">
+      <span class="day-num">{{ f.dia.orden }}</span>
+      <span class="day-main">
+        <h3>{{ f.dia.titulo }}</h3>
+        <p>{{ f.dia.enfoque }}{% if f.dia.enfoque and f.dia.dia_semana is not None %} · {% endif %}{{ f.dia.nombre_dia_semana }}</p>
+        <span style="display:inline-flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          {% if f.es_hoy %}<span class="pill">Hoy</span>{% endif %}
+          {% if f.completada %}<span class="pill pill-mint">✓ Completado</span>
+          {% elif f.en_curso %}<span class="pill pill-lemon">En curso</span>
+          {% else %}<span class="pill pill-peach">Pendiente</span>{% endif %}
+        </span>
+      </span>
+      <svg class="icon chev"><use href="#i-chev"/></svg>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<section class="card empty"><strong>Aún no tienes una rutina</strong>Cuando se cargue tu plan semanal, lo verás aquí.</section>
+{% endif %}
+{% endblock %}
