@@ -1,0 +1,61 @@
+{% extends 'apptrainer/base.html' %}
+{% block title %}Hoy · AppTrainer{% endblock %}
+{% block content %}
+<h1 class="page-title">Hola, {{ user.first_name|default:user.username }} 👋</h1>
+<p class="page-sub">{{ fecha|date:"l j \d\e F" }}</p>
+
+<div class="stack">
+{% if not rutina %}
+  <section class="card empty">
+    <strong>Aún no tienes una rutina</strong>
+    Cuando tu entrenador (o tú) cargue tu plan semanal, aparecerá aquí.
+  </section>
+{% else %}
+  {% if dia %}
+    <section class="card hero">
+      <p class="eyebrow">Hoy toca</p>
+      <h2>{{ dia.titulo }}</h2>
+      <p>{{ dia.enfoque }}</p>
+      <div class="hero-row">
+        <a class="btn btn-light" href="{% url 'apptrainer:dia' dia.pk %}">
+          {% if n_hechos == total and total %}Ver sesión{% elif n_hechos %}Continuar{% else %}Empezar{% endif %}
+          <svg class="icon"><use href="#i-chev"/></svg>
+        </a>
+        <div class="ring" style="--p: {{ porcentaje }}" role="img" aria-label="{{ porcentaje }}% completado"><span>{{ n_hechos }}/{{ total }}</span></div>
+      </div>
+    </section>
+  {% else %}
+    <section class="card hero">
+      <p class="eyebrow">Hoy</p>
+      <h2>Día de descanso</h2>
+      {% if proximo %}
+        <p>Lo próximo: <b>{{ proximo.titulo }}</b>{% if proximo.enfoque %} · {{ proximo.enfoque }}{% endif %}, el {{ fecha_proximo|date:"l" }}.</p>
+      {% else %}
+        <p>Asigna un día de la semana a cada día de tu rutina para ver qué toca hoy.</p>
+      {% endif %}
+      <div class="hero-row"><a class="btn btn-light" href="{% url 'apptrainer:semana' %}">Ver mi semana <svg class="icon"><use href="#i-chev"/></svg></a></div>
+    </section>
+  {% endif %}
+
+  <div class="tiles">
+    <div class="tile tile-mint">
+      <div class="label">Esta semana</div>
+      <div class="value">{{ hechas }}/{{ total_dias }}</div>
+      <div class="hint">días completados</div>
+    </div>
+    <a class="tile tile-pink" href="{% url 'apptrainer:peso' %}" style="text-decoration:none">
+      <div class="label">Peso</div>
+      {% if ultimo_peso %}
+        <div class="value">{{ ultimo_peso.kg|floatformat:1 }} kg</div>
+        <div class="hint">
+          {% if ultimo_peso.variacion is not None %}{% if ultimo_peso.variacion > 0 %}▲ +{% elif ultimo_peso.variacion < 0 %}▼ {% else %}= {% endif %}{{ ultimo_peso.variacion|floatformat:1 }} vs. anterior{% else %}primer registro{% endif %}
+        </div>
+      {% else %}
+        <div class="value">—</div>
+        <div class="hint">registra tu peso</div>
+      {% endif %}
+    </a>
+  </div>
+{% endif %}
+</div>
+{% endblock %}
