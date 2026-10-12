@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction
@@ -151,6 +153,27 @@ class EjercicioHecho(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['sesion', 'ejercicio'], name='hecho_unico')
         ]
+
+
+class PesoEjercicio(models.Model):
+    """Peso (kg) levantado en un ejercicio durante una sesión."""
+
+    sesion = models.ForeignKey(Sesion, on_delete=models.CASCADE, related_name='pesos')
+    ejercicio = models.ForeignKey(Ejercicio, on_delete=models.CASCADE, related_name='pesos')
+    kg = models.DecimalField(
+        'peso (kg)', max_digits=5, decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01')), MaxValueValidator(500)],
+    )
+
+    class Meta:
+        verbose_name = 'peso por ejercicio'
+        verbose_name_plural = 'pesos por ejercicio'
+        constraints = [
+            models.UniqueConstraint(fields=['sesion', 'ejercicio'], name='peso_ejercicio_unico')
+        ]
+
+    def __str__(self):
+        return f'{self.ejercicio} · {self.kg} kg'
 
 
 class RegistroPeso(models.Model):

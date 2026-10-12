@@ -25,6 +25,13 @@
   </li>
   {% endfor %}
 </ul>
+
+<section class="card export-card">
+  <h2 class="card-title">Exportar registro</h2>
+  <p class="muted">Semana del {{ lunes|date:"j \d\e F" }} al {{ domingo|date:"j \d\e F" }}: ejercicios hechos y pesos levantados.</p>
+  <a class="btn btn-block" href="{% url 'apptrainer:semana_excel' %}"><svg class="icon"><use href="#i-download"/></svg>Exportar Excel de la semana</a>
+  <p class="export-alt"><a href="{% url 'apptrainer:semana_excel' %}?todo=1">Descargar todo el historial</a></p>
+</section>
 {% else %}
 <section class="card empty"><strong>Aún no tienes una rutina</strong>Cuando se cargue tu plan semanal, lo verás aquí.</section>
 {% endif %}

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Bloque, Dia, Ejercicio, EjercicioHecho, RegistroPeso, Rutina, Sesion
+from .models import Bloque, Dia, Ejercicio, EjercicioHecho, PesoEjercicio, RegistroPeso, Rutina, Sesion
 
 
 class DiaInline(admin.TabularInline):
@@ -47,12 +47,17 @@ class HechoInline(admin.TabularInline):
     extra = 0
 
 
+class PesoEjercicioInline(admin.TabularInline):
+    model = PesoEjercicio
+    extra = 0
+
+
 @admin.register(Sesion)
 class SesionAdmin(admin.ModelAdmin):
     list_display = ['usuario', 'dia', 'fecha', 'completada']
     list_filter = ['completada', 'fecha']
     search_fields = ['usuario__username']
-    inlines = [HechoInline]
+    inlines = [HechoInline, PesoEjercicioInline]
 
 
 @admin.register(RegistroPeso)

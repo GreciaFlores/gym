@@ -3,7 +3,19 @@
 {% block content %}
 <a class="back" href="{% url 'apptrainer:semana' %}"><svg class="icon"><use href="#i-back"/></svg>Mi semana</a>
 <h1 class="page-title">{{ dia.titulo }}</h1>
-<p class="page-sub">{{ dia.enfoque }}{% if dia.enfoque %} · {% endif %}{{ fecha|date:"j \d\e F" }}</p>
+<p class="page-sub">{{ dia.enfoque }}</p>
+
+<form class="date-bar" method="get" action="{% url 'apptrainer:dia' dia.pk %}">
+  <label class="date-field" for="fecha">
+    <svg class="icon"><use href="#i-semana"/></svg>
+    <span class="sr-only">Fecha de la sesión</span>
+    <input type="date" id="fecha" name="fecha" value="{{ fecha|date:'Y-m-d' }}" data-autosubmit required>
+  </label>
+  <a class="pill {% if es_hoy %}pill-active{% endif %}" href="?fecha={{ hoy_iso }}">Hoy</a>
+  <a class="pill {% if es_manana %}pill-active{% endif %}" href="?fecha={{ manana_iso }}">Mañana</a>
+  <noscript><button class="btn btn-soft" type="submit">Ir</button></noscript>
+</form>
+<p class="date-long">{{ fecha|date:"l j \d\e F \d\e Y" }}</p>
 
 <div class="progress-sticky">
   <div class="progress-card" data-progress>
@@ -30,6 +42,7 @@
         <article class="ex {% if e.hecho %}is-done{% endif %}">
           <form method="post" action="{% url 'apptrainer:alternar' e.pk %}" data-toggle>
             {% csrf_token %}
+            <input type="hidden" name="fecha" value="{{ fecha|date:'Y-m-d' }}">
             <button class="check" type="submit" aria-label="Marcar {{ e.nombre }}"><svg class="icon"><use href="#i-check"/></svg></button>
           </form>
           <div class="ex-body">
@@ -42,6 +55,18 @@
             </div>
             {% endif %}
             {% if e.nota %}<p class="ex-note">{{ e.nota }}</p>{% endif %}
+            {% if b.con_peso %}
+            <div class="kg-row {% if e.kg_error %}has-error{% endif %}">
+              <label for="kg_{{ e.pk }}">Peso levantado</label>
+              <div class="kg-input">
+                <input id="kg_{{ e.pk }}" name="kg_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off"
+                       placeholder="{% if e.kg_previo %}antes {{ e.kg_previo }}{% else %}0{% endif %}" value="{{ e.kg_texto }}" data-kg
+                       {% if e.kg_error %}aria-invalid="true" aria-describedby="err_{{ e.pk }}"{% endif %}>
+                <span>kg</span>
+              </div>
+              {% if e.kg_error %}<p class="field-error" id="err_{{ e.pk }}">{{ e.kg_error }}</p>{% endif %}
+            </div>
+            {% endif %}
           </div>
         </article>
         {% endfor %}
@@ -52,5 +77,12 @@
   {% empty %}
   <section class="card empty"><strong>Este día aún no tiene ejercicios</strong></section>
   {% endfor %}
+
+  <form id="form-guardar" class="card save-card" method="post" action="{% url 'apptrainer:dia_guardar' dia.pk %}" data-save-form>
+    {% csrf_token %}
+    <input type="hidden" name="fecha" value="{{ fecha|date:'Y-m-d' }}">
+    <p>Los ✓ se guardan al tocarlos. Los pesos se guardan con este botón.</p>
+    <button class="btn btn-block" type="submit"><svg class="icon"><use href="#i-check"/></svg>Guardar todo y ver resumen</button>
+  </form>
 </div>
 {% endblock %}

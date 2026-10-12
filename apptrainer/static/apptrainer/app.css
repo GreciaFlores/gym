@@ -232,3 +232,36 @@ button, input { font: inherit; color: inherit; }
   .page-title { font-size: 2rem; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* ---------- fecha, pesos por ejercicio, guardado ---------- */
+.muted { color: var(--muted); }
+.date-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 4px; }
+.date-field { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 2px solid var(--line); border-radius: 16px; padding: 4px 12px; color: var(--lila-dark); box-shadow: var(--shadow-sm); }
+.date-field:focus-within { border-color: var(--lila-mid); box-shadow: 0 0 0 4px var(--lila-soft); }
+.date-field input { border: 0; background: transparent; font-weight: 800; min-height: 40px; color: var(--ink); font-size: 1rem; }
+.date-field input:focus { outline: none; }
+.date-bar .pill { padding: 9px 14px; font-size: .85rem; text-decoration: none; }
+.pill-active { background: var(--lila); color: #fff; }
+.date-long { color: var(--muted); font-weight: 600; text-transform: capitalize; margin: 4px 0 6px; }
+
+.kg-row { margin-top: 10px; }
+.kg-row label { display: block; font-size: .75rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+.kg-input { display: inline-flex; align-items: center; gap: 8px; }
+.kg-input input { width: 112px; min-height: 46px; padding: 8px 12px; border-radius: 14px; border: 2px solid var(--line); background: #fbf9ff; font-size: 1.05rem; font-weight: 800; text-align: right; }
+.kg-input input::placeholder { color: #a79fc4; font-weight: 600; }
+.kg-input input:focus { outline: none; border-color: var(--lila-mid); background: #fff; box-shadow: 0 0 0 4px var(--lila-soft); }
+.kg-input span { font-weight: 800; color: var(--muted); }
+.kg-row.has-error .kg-input input { border-color: #e0668f; background: #fff5f9; }
+.field-error { color: #b4234f; font-size: .85rem; font-weight: 700; margin-top: 4px; }
+
+.save-card { text-align: center; }
+.save-card p { color: var(--muted); font-size: .88rem; margin-bottom: 12px; }
+
+.summary .state { width: 28px; height: 28px; border-radius: 10px; border: 2px solid var(--lila-mid); display: grid; place-items: center; flex: none; color: #fff; }
+.summary .state-ok { background: linear-gradient(135deg, var(--lila), #c08df0); border-color: transparent; }
+.summary .state .icon { width: 16px; height: 16px; stroke-width: 3; }
+a.btn-soft { text-decoration: none; }
+.tiles .btn { width: 100%; }
+.export-card { margin-top: 18px; }
+.export-card .muted { margin: -4px 0 12px; font-size: .92rem; }
+.export-alt { text-align: center; margin-top: 12px; font-size: .9rem; font-weight: 700; }

@@ -4,14 +4,26 @@ from decimal import Decimal
 
 from django.db import transaction
 from django.db.models import Count
+from django.utils import timezone
 from openpyxl import Workbook
 from openpyxl.chart import LineChart, Reference
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from .models import Ejercicio, EjercicioHecho, RegistroPeso, Rutina, Sesion
+from .models import Bloque, Ejercicio, EjercicioHecho, PesoEjercicio, RegistroPeso, Rutina, Sesion
 
 VENTANA_MEDIA = 4
+LIMITE_DIAS = 366  # la fecha de una sesión puede estar a ±1 año de hoy
+
+
+def fecha_valida(texto, hoy=None):
+    """Fecha ISO enviada por el usuario; si es inválida o absurda, usa hoy."""
+    hoy = hoy or timezone.localdate()
+    try:
+        fecha = dt.date.fromisoformat(texto or '')
+    except ValueError:
+        return hoy
+    return fecha if abs((fecha - hoy).days) <= LIMITE_DIAS else hoy
 
 
 def rutina_activa(usuario):
@@ -64,6 +76,44 @@ def alternar_ejercicio(usuario, ejercicio, fecha):
         sesion.completada = completada
         sesion.save(update_fields=['completada'])
     return creado, hechos, total, completada
+
+
+def pesos_de(usuario, dia, fecha):
+    """{ejercicio_id: kg} registrados para ese día en esa fecha."""
+    return dict(
+        PesoEjercicio.objects.filter(
+            sesion__usuario=usuario, sesion__dia=dia, sesion__fecha=fecha
+        ).values_list('ejercicio_id', 'kg')
+    )
+
+
+def ultimos_pesos(usuario, dia, fecha):
+    """{ejercicio_id: kg} del registro más reciente anterior a `fecha` (referencia)."""
+    ultimos = {}
+    registros = PesoEjercicio.objects.filter(
+        sesion__usuario=usuario, ejercicio__bloque__dia=dia, sesion__fecha__lt=fecha
+    ).order_by('-sesion__fecha').values_list('ejercicio_id', 'kg')
+    for ejercicio_id, kg in registros:
+        ultimos.setdefault(ejercicio_id, kg)
+    return ultimos
+
+
+@transaction.atomic
+def guardar_pesos(usuario, dia, fecha, pesos):
+    """Guarda {ejercicio_id: Decimal | None}; None borra el registro. Devuelve la sesión o None."""
+    sesion = Sesion.objects.filter(usuario=usuario, dia=dia, fecha=fecha).first()
+    if sesion is None:
+        if all(kg is None for kg in pesos.values()):
+            return None  # nada que guardar: no se crea una sesión vacía
+        sesion = Sesion.objects.create(usuario=usuario, dia=dia, fecha=fecha)
+    for ejercicio_id, kg in pesos.items():
+        if kg is None:
+            PesoEjercicio.objects.filter(sesion=sesion, ejercicio_id=ejercicio_id).delete()
+        else:
+            PesoEjercicio.objects.update_or_create(
+                sesion=sesion, ejercicio_id=ejercicio_id, defaults={'kg': kg}
+            )
+    return sesion
 
 
 def resumen_semana(usuario, rutina, hoy):
@@ -150,6 +200,83 @@ def exportar_pesos_excel(usuario):
         grafica.series[0].graphicalProperties.line.solidFill = lila
         grafica.series[1].graphicalProperties.line.solidFill = 'F58FB5'
         ws.add_chart(grafica, 'G2')
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
+
+
+def _estilizar_encabezado(ws, ancho_columnas):
+    lila = '7C5CD6'
+    for c in ws[1]:
+        c.font = Font(bold=True, color='FFFFFF')
+        c.fill = PatternFill('solid', fgColor=lila)
+        c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    ws.row_dimensions[1].height = 30
+    for i, ancho in enumerate(ancho_columnas, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = ancho
+    ws.freeze_panes = 'A2'
+
+
+def exportar_registro_excel(usuario, desde=None, hasta=None):
+    """Excel con el registro de entrenamientos del usuario entre `desde` y `hasta` (inclusive).
+
+    Hoja "Registro": una fila por ejercicio de cada sesión, con si se hizo y el peso.
+    Hoja "Resumen": una fila por sesión con su estado.
+    """
+    sesiones = Sesion.objects.filter(usuario=usuario).select_related('dia').order_by('fecha', 'dia__orden')
+    if desde:
+        sesiones = sesiones.filter(fecha__gte=desde)
+    if hasta:
+        sesiones = sesiones.filter(fecha__lte=hasta)
+    sesiones = list(sesiones)
+
+    hechos = set(EjercicioHecho.objects.filter(sesion__in=sesiones).values_list('sesion_id', 'ejercicio_id'))
+    pesos = {
+        (sid, eid): kg
+        for sid, eid, kg in PesoEjercicio.objects.filter(sesion__in=sesiones).values_list('sesion_id', 'ejercicio_id', 'kg')
+    }
+    ejercicios_por_dia = {}
+    for s in sesiones:
+        if s.dia_id not in ejercicios_por_dia:
+            ejercicios_por_dia[s.dia_id] = list(
+                Ejercicio.objects.filter(bloque__dia_id=s.dia_id)
+                .select_related('bloque').order_by('bloque__orden', 'orden')
+            )
+
+    wb = Workbook()
+    registro = wb.active
+    registro.title = 'Registro'
+    registro.append(['Fecha', 'Día', 'Enfoque', 'Bloque', 'Ejercicio', 'Series y reps', 'Hecho', 'Peso (kg)'])
+    resumen = wb.create_sheet('Resumen')
+    resumen.append(['Fecha', 'Día', 'Enfoque', 'Estado', 'Ejercicios hechos', 'Total de ejercicios'])
+
+    nombres_bloque = dict(Bloque.TIPOS)
+    for s in sesiones:
+        ejercicios = ejercicios_por_dia[s.dia_id]
+        n_hechos = 0
+        for e in ejercicios:
+            hecho = (s.pk, e.pk) in hechos
+            n_hechos += hecho
+            kg = pesos.get((s.pk, e.pk))
+            registro.append([
+                s.fecha, s.dia.titulo, s.dia.enfoque, nombres_bloque[e.bloque.tipo], e.nombre,
+                e.prescripcion, 'Sí' if hecho else 'No', float(kg) if kg is not None else None,
+            ])
+        estado = 'Completado' if s.completada else ('En curso' if n_hechos else 'Pendiente')
+        resumen.append([s.fecha, s.dia.titulo, s.dia.enfoque, estado, n_hechos, len(ejercicios)])
+
+    _estilizar_encabezado(registro, [13, 10, 20, 18, 42, 16, 9, 12])
+    _estilizar_encabezado(resumen, [13, 10, 20, 14, 18, 20])
+    for fila in registro.iter_rows(min_row=2):
+        fila[0].number_format = 'DD/MM/YYYY'
+        fila[7].number_format = '0.0#'
+        fila[6].alignment = Alignment(horizontal='center')
+        if fila[6].value == 'Sí':
+            fila[6].fill = PatternFill('solid', fgColor='CDF3E4')
+    for fila in resumen.iter_rows(min_row=2):
+        fila[0].number_format = 'DD/MM/YYYY'
+    registro.auto_filter.ref = registro.dimensions
 
     buffer = io.BytesIO()
     wb.save(buffer)

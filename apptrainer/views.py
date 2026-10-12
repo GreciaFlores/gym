@@ -1,16 +1,20 @@
+import datetime as dt
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.db import connection
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
 
 from . import services
-from .forms import PesoForm
-from .models import Dia, Ejercicio, RegistroPeso
+from .forms import KgField, PesoForm
+from .models import Bloque, Dia, Ejercicio, RegistroPeso
 
 XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
@@ -36,21 +40,62 @@ def _agrupar(ejercicios):
     return items
 
 
-def _armar_bloques(usuario, dia, fecha):
+def _kg_texto(kg):
+    """12.50 -> '12,5' (como lo escribe quien usa la app)."""
+    return format(kg.normalize(), 'f').replace('.', ',')
+
+
+def _armar_bloques(usuario, dia, fecha, escritos=None, errores=None):
+    """Bloques del día con el estado de cada ejercicio en `fecha`.
+
+    `escritos` y `errores` ({ejercicio_id: texto}) permiten volver a mostrar lo que la
+    persona tipeó cuando el guardado falló por un peso inválido.
+    """
+    escritos, errores = escritos or {}, errores or {}
     hechos = services.hechos_de(usuario, dia, fecha)
+    guardados = services.pesos_de(usuario, dia, fecha)
+    previos = services.ultimos_pesos(usuario, dia, fecha)
     bloques = []
     for b in dia.bloques.prefetch_related('ejercicios').order_by('orden'):
         ejercicios = list(b.ejercicios.all())
+        con_peso = b.tipo != Bloque.MOVILIDAD
         for e in ejercicios:
             e.hecho = e.pk in hechos
+            e.kg = guardados.get(e.pk)
+            e.kg_texto = escritos[e.pk] if e.pk in escritos else (_kg_texto(e.kg) if e.kg is not None else '')
+            e.kg_error = errores.get(e.pk, '')
+            e.kg_previo = _kg_texto(previos[e.pk]) if e.pk in previos else ''
         bloques.append({
             'tipo': b.tipo,
             'titulo': b.get_tipo_display(),
+            'con_peso': con_peso,
+            'ejercicios': ejercicios,
             'items': _agrupar(ejercicios),
             'hechos': sum(e.hecho for e in ejercicios),
             'total': len(ejercicios),
         })
     return bloques, len(hechos)
+
+
+def _contexto_dia(usuario, dia, fecha, escritos=None, errores=None):
+    bloques, n_hechos = _armar_bloques(usuario, dia, fecha, escritos, errores)
+    total = sum(b['total'] for b in bloques)
+    hoy = timezone.localdate()
+    return {
+        'dia': dia, 'bloques': bloques, 'fecha': fecha, 'seccion': 'semana',
+        'n_hechos': n_hechos, 'total': total,
+        'porcentaje': round(100 * n_hechos / total) if total else 0,
+        'hoy_iso': hoy.isoformat(), 'manana_iso': (hoy + dt.timedelta(days=1)).isoformat(),
+        'es_hoy': fecha == hoy, 'es_manana': fecha == hoy + dt.timedelta(days=1),
+    }
+
+
+def _dia_del_usuario(request, pk):
+    return get_object_or_404(Dia, pk=pk, rutina__usuario=request.user)
+
+
+def _url_dia(nombre, pk, fecha):
+    return f"{reverse(nombre, args=[pk])}?fecha={fecha.isoformat()}"
 
 
 @login_required
@@ -91,21 +136,79 @@ def semana(request):
                 'completada': bool(s and s.completada),
                 'en_curso': bool(s and not s.completada and s.n_hechos),
             })
-    return render(request, 'apptrainer/semana.html',
-                  {'rutina': rutina, 'filas': filas, 'seccion': 'semana', 'fecha': fecha})
+    lunes = services.lunes_de(fecha)
+    return render(request, 'apptrainer/semana.html', {
+        'rutina': rutina, 'filas': filas, 'seccion': 'semana', 'fecha': fecha,
+        'lunes': lunes, 'domingo': lunes + dt.timedelta(days=6),
+    })
+
+
+@login_required
+@require_GET
+def semana_excel(request):
+    """Excel del registro de entrenamientos: la semana actual o, con ?todo=1, todo el historial."""
+    hoy = timezone.localdate()
+    if request.GET.get('todo') == '1':
+        desde = hasta = None
+        sufijo = 'historial'
+    else:
+        desde = services.lunes_de(hoy)
+        hasta = desde + dt.timedelta(days=6)
+        sufijo = f'semana-{desde.isoformat()}'
+    contenido = services.exportar_registro_excel(request.user, desde, hasta)
+    respuesta = HttpResponse(contenido, content_type=XLSX)
+    respuesta['Content-Disposition'] = f'attachment; filename="apptrainer-registro-{sufijo}.xlsx"'
+    return respuesta
 
 
 @login_required
 def dia_detalle(request, pk):
-    dia = get_object_or_404(Dia, pk=pk, rutina__usuario=request.user)
-    fecha = timezone.localdate()
-    bloques, n_hechos = _armar_bloques(request.user, dia, fecha)
-    total = sum(b['total'] for b in bloques)
-    return render(request, 'apptrainer/dia.html', {
-        'dia': dia, 'bloques': bloques, 'fecha': fecha, 'seccion': 'semana',
-        'n_hechos': n_hechos, 'total': total,
-        'porcentaje': round(100 * n_hechos / total) if total else 0,
-    })
+    dia = _dia_del_usuario(request, pk)
+    fecha = services.fecha_valida(request.GET.get('fecha'))
+    return render(request, 'apptrainer/dia.html', _contexto_dia(request.user, dia, fecha))
+
+
+@login_required
+@require_POST
+def dia_guardar(request, pk):
+    """Guarda los pesos de todos los ejercicios del día y muestra el resumen."""
+    dia = _dia_del_usuario(request, pk)
+    fecha = services.fecha_valida(request.POST.get('fecha'))
+    campo = KgField()
+    ejercicios = Ejercicio.objects.filter(bloque__dia=dia).exclude(bloque__tipo=Bloque.MOVILIDAD)
+
+    pesos, escritos, errores = {}, {}, {}
+    for e in ejercicios:
+        texto = request.POST.get(f'kg_{e.pk}', '').strip()
+        escritos[e.pk] = texto
+        try:
+            pesos[e.pk] = campo.clean(texto)
+        except ValidationError as exc:
+            errores[e.pk] = exc.messages[0]
+
+    if errores:
+        messages.error(request, 'Revisa los pesos marcados en rojo: no se guardó nada todavía.')
+        contexto = _contexto_dia(request.user, dia, fecha, escritos, errores)
+        return render(request, 'apptrainer/dia.html', contexto, status=422)
+
+    services.guardar_pesos(request.user, dia, fecha, pesos)
+    messages.success(request, 'Registro guardado.')
+    return redirect(_url_dia('apptrainer:dia_resumen', dia.pk, fecha))
+
+
+@login_required
+def dia_resumen(request, pk):
+    """Vista previa de lo registrado en un día y fecha."""
+    dia = _dia_del_usuario(request, pk)
+    fecha = services.fecha_valida(request.GET.get('fecha'))
+    contexto = _contexto_dia(request.user, dia, fecha)
+    con_peso = [e for b in contexto['bloques'] if b['con_peso'] for e in b['ejercicios']]
+    contexto.update(
+        n_con_peso=sum(e.kg is not None for e in con_peso),
+        total_con_peso=len(con_peso),
+        url_editar=_url_dia('apptrainer:dia', dia.pk, fecha),
+    )
+    return render(request, 'apptrainer/resumen.html', contexto)
 
 
 @login_required
@@ -115,15 +218,14 @@ def alternar(request, pk):
         Ejercicio.objects.select_related('bloque__dia'),
         pk=pk, bloque__dia__rutina__usuario=request.user,
     )
-    hecho, hechos, total, completada = services.alternar_ejercicio(
-        request.user, ejercicio, timezone.localdate()
-    )
+    fecha = services.fecha_valida(request.POST.get('fecha'))
+    hecho, hechos, total, completada = services.alternar_ejercicio(request.user, ejercicio, fecha)
     if request.headers.get('x-requested-with') == 'fetch':
         return JsonResponse({
             'hecho': hecho, 'hechos': hechos, 'total': total, 'completada': completada,
             'porcentaje': round(100 * hechos / total) if total else 0,
         })
-    return redirect('apptrainer:dia', pk=ejercicio.bloque.dia_id)
+    return redirect(_url_dia('apptrainer:dia', ejercicio.bloque.dia_id, fecha))
 
 
 @login_required

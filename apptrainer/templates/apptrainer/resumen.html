@@ -1,0 +1,38 @@
+{% extends 'apptrainer/base.html' %}
+{% block title %}Resumen · {{ dia.titulo }} · AppTrainer{% endblock %}
+{% block content %}
+<a class="back" href="{{ url_editar }}"><svg class="icon"><use href="#i-back"/></svg>Volver a editar</a>
+<h1 class="page-title">Resumen · {{ dia.titulo }}</h1>
+<p class="page-sub">{{ dia.enfoque }}{% if dia.enfoque %} · {% endif %}{{ fecha|date:"l j \d\e F \d\e Y" }}</p>
+
+<div class="stack">
+  <div class="tiles">
+    <div class="tile tile-mint"><div class="label">Ejercicios hechos</div><div class="value">{{ n_hechos }}/{{ total }}</div></div>
+    <div class="tile tile-lila"><div class="label">Pesos anotados</div><div class="value">{{ n_con_peso }}/{{ total_con_peso }}</div></div>
+  </div>
+
+  {% if not n_hechos and not n_con_peso %}
+    <section class="card empty"><strong>Todavía no hay registro para esta fecha</strong>Marca tus ejercicios y anota los pesos para verlos aquí.</section>
+  {% endif %}
+
+  {% for b in bloques %}
+  <section class="card">
+    <h2 class="card-title">{{ b.titulo }}<span class="pill {% if b.hechos == b.total %}pill-mint{% endif %}">{{ b.hechos }}/{{ b.total }}</span></h2>
+    <ul class="history summary">
+      {% for e in b.ejercicios %}
+      <li>
+        <span class="state {% if e.hecho %}state-ok{% endif %}" aria-label="{% if e.hecho %}Hecho{% else %}Sin hacer{% endif %}">{% if e.hecho %}<svg class="icon"><use href="#i-check"/></svg>{% endif %}</span>
+        <div class="h-date"><b>{{ e.nombre }}</b>{% if e.prescripcion %}<small>{{ e.prescripcion }}</small>{% endif %}</div>
+        {% if b.con_peso %}<span class="h-kg">{% if e.kg is not None %}{{ e.kg_texto }} kg{% else %}<span class="muted">—</span>{% endif %}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+
+  <div class="tiles">
+    <a class="btn btn-soft" href="{{ url_editar }}">Editar</a>
+    <a class="btn" href="{% url 'apptrainer:semana' %}">Listo</a>
+  </div>
+</div>
+{% endblock %}

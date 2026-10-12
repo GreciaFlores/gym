@@ -116,7 +116,8 @@ def test_completar_todos_marca_la_sesion_completada(cliente, con_rutina):
 def test_marcar_sin_js_redirige_al_dia(cliente, con_rutina):
     ej = Ejercicio.objects.filter(bloque__dia__rutina__usuario=con_rutina).first()
     r = cliente.post(reverse('apptrainer:alternar', args=[ej.pk]))
-    assert r.status_code == 302 and r['Location'] == reverse('apptrainer:dia', args=[ej.bloque.dia_id])
+    assert r.status_code == 302
+    assert r['Location'] == f"{reverse('apptrainer:dia', args=[ej.bloque.dia_id])}?fecha={timezone.localdate().isoformat()}"
 
 
 def test_marcar_exige_post(cliente, con_rutina):

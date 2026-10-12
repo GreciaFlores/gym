@@ -35,6 +35,31 @@
     });
   });
 
+  // --- Fecha de la sesión: cambiar la fecha recarga el día ---
+  document.querySelectorAll('[data-autosubmit]').forEach(function (input) {
+    input.addEventListener('change', function () { if (input.value) input.form.submit(); });
+  });
+
+  // --- Pesos por ejercicio ---
+  var sinGuardar = false;
+  document.querySelectorAll('input[data-kg]').forEach(function (input) {
+    input.addEventListener('input', function () { sinGuardar = true; });
+    // Si anotas un peso válido, el ejercicio cuenta como hecho (sin pedirte otro toque).
+    input.addEventListener('change', function () {
+      var card = input.closest('.ex');
+      var toggle = card && card.querySelector('form[data-toggle]');
+      if (/^\d+([.,]\d{1,2})?$/.test(input.value.trim()) && toggle && !card.classList.contains('is-done')) {
+        if (toggle.requestSubmit) toggle.requestSubmit();
+        else toggle.dispatchEvent(new Event('submit', { cancelable: true }));
+      }
+    });
+  });
+  var guardar = document.querySelector('[data-save-form]');
+  if (guardar) guardar.addEventListener('submit', function () { sinGuardar = false; });
+  window.addEventListener('beforeunload', function (ev) {
+    if (sinGuardar) { ev.preventDefault(); ev.returnValue = ''; }
+  });
+
   // --- Gráfica de peso ---
   var host = document.getElementById('grafica');
   var raw = document.getElementById('datos-peso');

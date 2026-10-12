@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django import forms
 from django.utils import timezone
 
@@ -27,3 +29,13 @@ class PesoForm(forms.ModelForm):
         if fecha > timezone.localdate():
             raise forms.ValidationError('La fecha no puede ser futura.')
         return fecha
+
+
+class KgField(forms.DecimalField):
+    """Peso levantado en un ejercicio: opcional, acepta "12,5" y "12.5"."""
+
+    def __init__(self, **kwargs):
+        super().__init__(
+            required=False, localize=True, min_value=Decimal('0.01'), max_value=Decimal('500'),
+            max_digits=5, decimal_places=2, **kwargs,
+        )

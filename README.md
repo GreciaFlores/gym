@@ -4,7 +4,8 @@ App web (instalable en el celular) para guardar la **rutina semanal** y llevar e
 
 - **Hoy:** qué día toca, progreso y resumen de la semana.
 - **Semana:** los días de la rutina con su estado (pendiente / en curso / completado).
-- **Día:** movilidad, zona media y trabajo principal, con checks, ejercicios combinados, material y videos.
+- **Día:** movilidad, zona media y trabajo principal, con checks, ejercicios combinados, material y videos. Se elige la **fecha** de la sesión, se anota el **peso levantado** en cada ejercicio (menos movilidad) y un botón guarda todo y muestra el **resumen**.
+- **Excel de la semana:** desde "Mi semana" se descarga el registro (ejercicios hechos y pesos), o todo el historial.
 - **Peso:** registro semanal, gráfica con media móvil, historial y **descarga en Excel**.
 - Login con usuario y contraseña. Cada usuario ve **solo sus datos** (listo para que un entrenador sume alumnos).
 - Panel `/admin/` para editar rutinas, días, bloques y ejercicios.
@@ -18,7 +19,7 @@ python manage.py runserver                           # http://127.0.0.1:8000/app
 
 Publicación en producción: [docs/publicar-en-render.md](docs/publicar-en-render.md) (`render.yaml` incluido).
 
-> **Para evolucionar:** `Ejercicio.prescripcion` es texto libre (`3x10`, `3xfallo`). La próxima fase agrega series reales (kg y reps por serie) en un modelo aparte.
+> **Para evolucionar:** `Ejercicio.prescripcion` es texto libre (`3x10`, `3xfallo`) y el peso se anota una vez por ejercicio. La próxima fase puede registrar kg y reps por serie.
 
 ---
 
