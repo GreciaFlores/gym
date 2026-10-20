@@ -50,7 +50,11 @@
     var modo = bloque.querySelector('input[type=radio]:checked');
     var v = function (campo) { var i = bloque.querySelector('[data-campo=' + campo + ']'); return i ? numero(i.value) : null; };
     modo = modo ? modo.value : 'total';
-    if (modo === 'barra') { var b = v('barra'), d = v('discos'); return (b === null && d === null) ? null : (b || 0) + (d || 0); }
+    if (modo === 'barra') {
+      var b = v('barra');
+      if (bloque.querySelector('[data-campo=lado]')) { var l = v('lado'); return (b === null && l === null) ? null : (b || 0) + 2 * (l || 0); }
+      var d = v('discos'); return (b === null && d === null) ? null : (b || 0) + (d || 0);
+    }
     if (modo === 'mancuernas') { var m = v('mancuerna'); return m === null ? null : m * 2; }
     return v('total');
   }
@@ -76,6 +80,12 @@
       }
     });
   });
+  // --- Comentarios: contador y aviso de cambios sin guardar ---
+  var comentario = document.querySelector('[data-comentario]');
+  if (comentario) {
+    var contador = document.querySelector('[data-contador]');
+    comentario.addEventListener('input', function () { sinGuardar = true; contador.textContent = comentario.value.length; });
+  }
   var guardar = document.querySelector('[data-save-form]');
   if (guardar) guardar.addEventListener('submit', function () { sinGuardar = false; });
   window.addEventListener('beforeunload', function (ev) {

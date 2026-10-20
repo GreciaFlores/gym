@@ -177,11 +177,11 @@ def test_excel_semanal_incluye_hechos_y_pesos(cliente, dia1):
     assert len(filas) == 12  # todos los ejercicios del día
     hip_fila = next(f for f in filas if f[4] == 'Hip thrust')
     assert hip_fila[1] == 'Día 1' and hip_fila[3] == 'Trabajo principal' and hip_fila[6] == 'Sí'
-    assert hip_fila[7] == 'Total' and hip_fila[11] == 42.5
+    assert hip_fila[7] == 'Total' and hip_fila[12] == 42.5
     rumano = next(f for f in filas if f[4] == 'Peso muerto rumano')
-    assert rumano[6:12] == ('No', None, None, None, None, None)
+    assert rumano[6:13] == ('No', None, None, None, None, None, None)
     resumen = list(wb['Resumen'].iter_rows(min_row=2, values_only=True))
-    assert resumen[0][3:] == ('En curso', 1, 12, 42.5)
+    assert resumen[0][3:] == ('En curso', 1, 12, 42.5, None)
 
 
 def test_excel_semanal_solo_la_semana_actual_y_todo_el_historial(cliente, dia1, usuario):
@@ -190,9 +190,9 @@ def test_excel_semanal_solo_la_semana_actual_y_todo_el_historial(cliente, dia1, 
     guardar(cliente, dia1, fecha=vieja, **{str(hip.pk): '30'})
     guardar(cliente, dia1, **{str(hip.pk): '40'})
     semana = _abrir(cliente.get(reverse('apptrainer:semana_excel')))
-    assert [f[11] for f in semana['Registro'].iter_rows(min_row=2, values_only=True) if f[4] == 'Hip thrust'] == [40.0]
+    assert [f[12] for f in semana['Registro'].iter_rows(min_row=2, values_only=True) if f[4] == 'Hip thrust'] == [40.0]
     todo = _abrir(cliente.get(reverse('apptrainer:semana_excel'), {'todo': '1'}))
-    assert sorted(f[11] for f in todo['Registro'].iter_rows(min_row=2, values_only=True) if f[4] == 'Hip thrust') == [30.0, 40.0]
+    assert sorted(f[12] for f in todo['Registro'].iter_rows(min_row=2, values_only=True) if f[4] == 'Hip thrust') == [30.0, 40.0]
     assert 'historial' in cliente.get(reverse('apptrainer:semana_excel'), {'todo': '1'})['Content-Disposition']
 
 

@@ -128,6 +128,14 @@ class Ejercicio(models.Model):
         max_length=60, blank=True,
         help_text='Nombre del archivo en static/apptrainer/ejercicios/ (sin .svg).',
     )
+    modos_permitidos = models.CharField(
+        'tipos de carga disponibles', max_length=40, default='barra,mancuernas,total',
+        help_text='Separados por coma: barra, mancuernas, total.',
+    )
+    carga_por_lado = models.BooleanField(
+        'discos por lado', default=False,
+        help_text='Con barra: se anota el peso de cada lado y el total es barra + 2 x cada lado.',
+    )
 
     class Meta:
         ordering = ['bloque', 'orden']
@@ -137,6 +145,13 @@ class Ejercicio(models.Model):
 
     def __str__(self):
         return self.nombre
+
+    @property
+    def modos(self):
+        """Tipos de carga que ofrece este ejercicio, en orden (nunca vacío)."""
+        validos = {m for m, _ in TIPOS_CARGA}
+        modos = [m.strip() for m in self.modos_permitidos.split(',') if m.strip() in validos]
+        return modos or [CARGA_TOTAL]
 
 
 class Sesion(models.Model):
@@ -148,6 +163,7 @@ class Sesion(models.Model):
     dia = models.ForeignKey(Dia, on_delete=models.CASCADE, related_name='sesiones')
     fecha = models.DateField()
     completada = models.BooleanField(default=False)
+    comentario = models.TextField('comentarios', blank=True)
 
     class Meta:
         ordering = ['-fecha']
@@ -176,7 +192,8 @@ class PesoEjercicio(models.Model):
     """Peso levantado en un ejercicio durante una sesión.
 
     `kg` es siempre el total levantado. Según `modo` se guarda además el detalle:
-    barra + discos (`kg_barra`, `kg_discos`) o por mancuerna (`kg_mancuerna`, cuenta x2).
+    barra + discos (`kg_barra`, `kg_discos` = suma de ambos lados), barra + cada lado
+    (`kg_barra`, `kg_por_lado`, cuenta x2) o por mancuerna (`kg_mancuerna`, cuenta x2).
     """
 
     sesion = models.ForeignKey(Sesion, on_delete=models.CASCADE, related_name='pesos')
@@ -186,6 +203,8 @@ class PesoEjercicio(models.Model):
         'peso de la barra (kg)', max_digits=5, decimal_places=2, null=True, blank=True)
     kg_discos = models.DecimalField(
         'discos agregados (kg)', max_digits=5, decimal_places=2, null=True, blank=True)
+    kg_por_lado = models.DecimalField(
+        'peso de cada lado (kg)', max_digits=5, decimal_places=2, null=True, blank=True)
     kg_mancuerna = models.DecimalField(
         'peso por mancuerna (kg)', max_digits=5, decimal_places=2, null=True, blank=True)
     kg = models.DecimalField(
@@ -207,7 +226,8 @@ class PesoEjercicio(models.Model):
     def detalle(self):
         """Texto del desglose: "20 + 30 = 50 kg", "2 × 12 = 24 kg" o "50 kg"."""
         from .cargas import detalle_texto
-        return detalle_texto(self.modo, self.kg_barra, self.kg_discos, self.kg_mancuerna, self.kg)
+        return detalle_texto(
+            self.modo, self.kg_barra, self.kg_discos, self.kg_mancuerna, self.kg, self.kg_por_lado)
 
 
 class RegistroPeso(models.Model):

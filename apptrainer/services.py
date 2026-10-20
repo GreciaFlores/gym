@@ -112,13 +112,20 @@ def ultimos_pesos(usuario, dia, fecha):
 
 
 @transaction.atomic
-def guardar_pesos(usuario, dia, fecha, cargas):
-    """Guarda {ejercicio_id: Carga | None}; None borra el registro. Devuelve la sesión o None."""
+def guardar_pesos(usuario, dia, fecha, cargas, comentario=None):
+    """Guarda {ejercicio_id: Carga | None} (None borra ese peso) y, si se indica, el
+    comentario de la sesión (texto vacío lo borra; None lo deja como está).
+
+    Devuelve la sesión, o None si no había nada que guardar (no se crean sesiones vacías).
+    """
     sesion = Sesion.objects.filter(usuario=usuario, dia=dia, fecha=fecha).first()
     if sesion is None:
-        if all(c is None for c in cargas.values()):
-            return None  # nada que guardar: no se crea una sesión vacía
+        if all(c is None for c in cargas.values()) and not comentario:
+            return None
         sesion = Sesion.objects.create(usuario=usuario, dia=dia, fecha=fecha)
+    if comentario is not None and sesion.comentario != comentario:
+        sesion.comentario = comentario
+        sesion.save(update_fields=['comentario'])
     for ejercicio_id, carga in cargas.items():
         if carga is None:
             PesoEjercicio.objects.filter(sesion=sesion, ejercicio_id=ejercicio_id).delete()
@@ -127,10 +134,15 @@ def guardar_pesos(usuario, dia, fecha, cargas):
                 sesion=sesion, ejercicio_id=ejercicio_id,
                 defaults={
                     'modo': carga.modo, 'kg': carga.kg, 'kg_barra': carga.barra,
-                    'kg_discos': carga.discos, 'kg_mancuerna': carga.mancuerna,
+                    'kg_discos': carga.discos, 'kg_por_lado': carga.por_lado,
+                    'kg_mancuerna': carga.mancuerna,
                 },
             )
     return sesion
+
+
+def comentario_de(usuario, dia, fecha):
+    return Sesion.objects.filter(usuario=usuario, dia=dia, fecha=fecha).values_list('comentario', flat=True).first() or ''
 
 
 def resumen_semana(usuario, rutina, hoy):
@@ -149,6 +161,7 @@ def _resumen_sesion(sesion, ejercicios, hechos, pesos):
     return {
         'fecha': sesion.fecha,
         'completada': sesion.completada,
+        'comentario': sesion.comentario,
         'hechos': sum((sesion.pk, e.pk) in hechos for e in ejercicios),
         'total': len(ejercicios),
         'carga': carga,
@@ -334,10 +347,13 @@ def exportar_registro_excel(usuario, desde=None, hasta=None):
     registro.title = 'Registro'
     registro.append([
         'Fecha', 'Día', 'Enfoque', 'Bloque', 'Ejercicio', 'Series y reps', 'Hecho',
-        'Tipo de carga', 'Barra (kg)', 'Discos (kg)', 'Por mancuerna (kg)', 'Total (kg)', 'Indicaciones',
+        'Tipo de carga', 'Barra (kg)', 'Discos (kg)', 'Cada lado (kg)', 'Por mancuerna (kg)', 'Total (kg)',
+        'Indicaciones',
     ])
     resumen = wb.create_sheet('Resumen')
-    resumen.append(['Fecha', 'Día', 'Enfoque', 'Estado', 'Ejercicios hechos', 'Total de ejercicios', 'Carga total (kg)'])
+    resumen.append([
+        'Fecha', 'Día', 'Enfoque', 'Estado', 'Ejercicios hechos', 'Total de ejercicios', 'Carga total (kg)', 'Comentarios',
+    ])
 
     nombres_bloque = dict(Bloque.TIPOS)
     nombres_carga = dict(TIPOS_CARGA)
@@ -355,16 +371,19 @@ def exportar_registro_excel(usuario, desde=None, hasta=None):
                 e.prescripcion, 'Sí' if hecho else 'No',
                 nombres_carga[p.modo] if p else None,
                 numero(p.kg_barra) if p else None, numero(p.kg_discos) if p else None,
-                numero(p.kg_mancuerna) if p else None, numero(p.kg) if p else None, e.nota,
+                numero(p.kg_por_lado) if p else None, numero(p.kg_mancuerna) if p else None,
+                numero(p.kg) if p else None, e.nota,
             ])
         estado = 'Completado' if s.completada else ('En curso' if n_hechos else 'Pendiente')
-        resumen.append([s.fecha, s.dia.titulo, s.dia.enfoque, estado, n_hechos, len(ejercicios), float(carga_total)])
+        resumen.append([
+            s.fecha, s.dia.titulo, s.dia.enfoque, estado, n_hechos, len(ejercicios), float(carga_total), s.comentario,
+        ])
 
-    _estilizar_encabezado(registro, [13, 10, 20, 18, 42, 16, 9, 15, 11, 11, 18, 11, 44])
-    _estilizar_encabezado(resumen, [13, 10, 20, 14, 18, 20, 16])
+    _estilizar_encabezado(registro, [13, 10, 20, 18, 42, 16, 9, 15, 11, 11, 13, 18, 11, 44])
+    _estilizar_encabezado(resumen, [13, 10, 20, 14, 18, 20, 16, 50])
     for fila in registro.iter_rows(min_row=2):
         fila[0].number_format = 'DD/MM/YYYY'
-        for celda in fila[8:12]:
+        for celda in fila[8:13]:
             celda.number_format = '0.0#'
         fila[6].alignment = Alignment(horizontal='center')
         if fila[6].value == 'Sí':
@@ -372,6 +391,7 @@ def exportar_registro_excel(usuario, desde=None, hasta=None):
     for fila in resumen.iter_rows(min_row=2):
         fila[0].number_format = 'DD/MM/YYYY'
         fila[6].number_format = '0.0#'
+        fila[7].alignment = Alignment(wrap_text=True, vertical='top')
     registro.auto_filter.ref = registro.dimensions
 
     buffer = io.BytesIO()

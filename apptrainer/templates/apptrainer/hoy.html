@@ -85,6 +85,7 @@
             {% if f.anterior %}
               <b>{{ f.anterior.carga|kg }} kg</b>
               <small>{{ f.anterior.hechos }}/{{ f.anterior.total }} ejercicios · {{ f.anterior.fecha|date:"j/n" }}</small>
+              {% if f.anterior.comentario %}<small class="cd-comentario">“{{ f.anterior.comentario|truncatechars:90 }}”</small>{% endif %}
             {% else %}<span class="muted">Sin registro</span>{% endif %}
           </div>
           <div class="cd-col cd-actual">
@@ -92,6 +93,7 @@
             {% if f.actual %}
               <b>{{ f.actual.carga|kg }} kg</b>
               <small>{{ f.actual.hechos }}/{{ f.actual.total }} ejercicios · {{ f.actual.fecha|date:"j/n" }}</small>
+              {% if f.actual.comentario %}<small class="cd-comentario">“{{ f.actual.comentario|truncatechars:90 }}”</small>{% endif %}
             {% else %}<span class="muted">Aún sin cargar</span>{% endif %}
           </div>
         </div>

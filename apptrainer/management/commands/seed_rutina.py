@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from apptrainer.catalogo import datos_de
+from apptrainer.catalogo import ajustes_de, datos_de
 from apptrainer.models import Bloque, Dia, Ejercicio, Rutina, Sesion
 
 MOV, MEDIA, PRINCIPAL = Bloque.MOVILIDAD, Bloque.ZONA_MEDIA, Bloque.PRINCIPAL
@@ -140,6 +140,7 @@ class Command(BaseCommand):
                         bloque=bloque, orden=i, nombre=nombre, prescripcion=prescripcion,
                         nota=nota, material=material, url_video=video, grupo=grupo,
                         imagen=datos_de(nombre)[0], carga_habitual=datos_de(nombre)[1],
+                        **ajustes_de(nombre),
                     )
                     for i, (nombre, prescripcion, nota, material, video, grupo)
                     in enumerate(ejercicios, start=1)

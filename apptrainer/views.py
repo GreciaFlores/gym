@@ -18,6 +18,7 @@ from .forms import KgField, PesoForm
 from .models import CARGA_BARRA, CARGA_MANCUERNAS, CARGA_TOTAL, TIPOS_CARGA, Bloque, Dia, Ejercicio, RegistroPeso
 
 XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+MAX_COMENTARIO = 1000
 ETIQUETAS_MODO = [(CARGA_BARRA, 'Barra'), (CARGA_MANCUERNAS, 'Mancuernas'), (CARGA_TOTAL, 'Total')]
 
 
@@ -47,15 +48,18 @@ def _carga_para_mostrar(e, guardado, previo, escritos):
     if escritos is not None:  # se volvió a mostrar tras un error: respeta lo tipeado
         return {
             'modo': escritos['modo'], 'total': escritos['total'], 'barra': escritos['barra'],
-            'discos': escritos['discos'], 'mancuerna': escritos['mancuerna'],
+            'discos': escritos['discos'], 'lado': escritos['lado'], 'mancuerna': escritos['mancuerna'],
         }
-    base = guardado or None
-    modo = (guardado.modo if guardado else previo.modo if previo else e.carga_habitual)
+    modo = guardado.modo if guardado else previo.modo if previo else e.carga_habitual
+    if modo not in e.modos:  # p. ej. un registro viejo con un tipo que el ejercicio ya no ofrece
+        modo = e.carga_habitual if e.carga_habitual in e.modos else e.modos[0]
+    base = guardado
     return {
         'modo': modo,
         'total': kg_texto(base.kg) if base and base.modo == CARGA_TOTAL else '',
         'barra': kg_texto(base.kg_barra) if base else '',
         'discos': kg_texto(base.kg_discos) if base else '',
+        'lado': kg_texto(base.kg_por_lado) if base else '',
         'mancuerna': kg_texto(base.kg_mancuerna) if base else '',
     }
 
@@ -81,6 +85,7 @@ def _armar_bloques(usuario, dia, fecha, escritos=None, errores=None):
             e.previo = previos.get(e.pk)
             e.carga = _carga_para_mostrar(e, e.guardado, e.previo, escritos.get(e.pk))
             e.kg_error = errores.get(e.pk, '')
+            e.modos_ui = [(m, etiqueta) for m, etiqueta in ETIQUETAS_MODO if m in e.modos]
         bloques.append({
             'tipo': b.tipo,
             'titulo': b.get_tipo_display(),
@@ -93,15 +98,17 @@ def _armar_bloques(usuario, dia, fecha, escritos=None, errores=None):
     return bloques, len(hechos)
 
 
-def _contexto_dia(usuario, dia, fecha, escritos=None, errores=None):
+def _contexto_dia(usuario, dia, fecha, escritos=None, errores=None, comentario=None):
     bloques, n_hechos = _armar_bloques(usuario, dia, fecha, escritos, errores)
     total = sum(b['total'] for b in bloques)
     hoy = timezone.localdate()
+    if comentario is None:
+        comentario = services.comentario_de(usuario, dia, fecha)
     return {
         'dia': dia, 'bloques': bloques, 'fecha': fecha, 'seccion': 'semana',
         'n_hechos': n_hechos, 'total': total,
         'porcentaje': round(100 * n_hechos / total) if total else 0,
-        'modos': ETIQUETAS_MODO,
+        'comentario': comentario, 'max_comentario': MAX_COMENTARIO,
         'hoy_iso': hoy.isoformat(), 'manana_iso': (hoy + dt.timedelta(days=1)).isoformat(),
         'es_hoy': fecha == hoy, 'es_manana': fecha == hoy + dt.timedelta(days=1),
     }
@@ -187,42 +194,53 @@ def dia_detalle(request, pk):
 @login_required
 @require_POST
 def dia_guardar(request, pk):
-    """Guarda el peso de todos los ejercicios del día (barra + discos, mancuernas o total)."""
+    """Guarda el peso de cada ejercicio del día (barra, mancuernas o total) y los comentarios."""
     dia = _dia_del_usuario(request, pk)
     fecha = services.fecha_valida(request.POST.get('fecha'))
     campo = KgField()
     ejercicios = Ejercicio.objects.filter(bloque__dia=dia).exclude(bloque__tipo=Bloque.MOVILIDAD)
-    modos_validos = {m for m, _ in TIPOS_CARGA}
 
     cargas, escritos, errores = {}, {}, {}
     for e in ejercicios:
         modo = request.POST.get(f'modo_{e.pk}')
-        if modo not in modos_validos:
-            modo = CARGA_TOTAL  # envío antiguo o sin selector: un solo peso total
+        if modo not in e.modos:
+            modo = CARGA_TOTAL if CARGA_TOTAL in e.modos else e.modos[0]
         crudo = {
             'modo': modo,
             'total': request.POST.get(f'kg_{e.pk}', '').strip(),
             'barra': request.POST.get(f'barra_{e.pk}', '').strip(),
             'discos': request.POST.get(f'discos_{e.pk}', '').strip(),
+            'lado': request.POST.get(f'lado_{e.pk}', '').strip(),
             'mancuerna': request.POST.get(f'mancuerna_{e.pk}', '').strip(),
         }
         escritos[e.pk] = crudo
         # Solo se validan los campos que usa el modo elegido.
-        usados = {CARGA_BARRA: ('barra', 'discos'), CARGA_MANCUERNAS: ('mancuerna',), CARGA_TOTAL: ('total',)}[modo]
+        usados = {
+            CARGA_BARRA: ('barra', 'lado') if e.carga_por_lado else ('barra', 'discos'),
+            CARGA_MANCUERNAS: ('mancuerna',),
+            CARGA_TOTAL: ('total',),
+        }[modo]
         try:
             limpios = {nombre: campo.clean(crudo[nombre]) for nombre in usados}
-            cargas[e.pk] = armar_carga(modo, **limpios)
+            if 'lado' in limpios:
+                limpios['por_lado'] = limpios.pop('lado')
+            cargas[e.pk] = armar_carga(modo, lados=e.carga_por_lado, **limpios)
         except ValidationError as exc:
             errores[e.pk] = exc.messages[0]
         except ValueError as exc:
             errores[e.pk] = str(exc)
 
+    comentario = request.POST.get('comentario', '').strip()
+    if len(comentario) > MAX_COMENTARIO:
+        messages.error(request, f'El comentario es muy largo (máximo {MAX_COMENTARIO} caracteres): no se guardó nada todavía.')
+        contexto = _contexto_dia(request.user, dia, fecha, escritos, errores, comentario)
+        return render(request, 'apptrainer/dia.html', contexto, status=422)
     if errores:
         messages.error(request, 'Revisa los pesos marcados en rojo: no se guardó nada todavía.')
-        contexto = _contexto_dia(request.user, dia, fecha, escritos, errores)
+        contexto = _contexto_dia(request.user, dia, fecha, escritos, errores, comentario)
         return render(request, 'apptrainer/dia.html', contexto, status=422)
 
-    services.guardar_pesos(request.user, dia, fecha, cargas)
+    services.guardar_pesos(request.user, dia, fecha, cargas, comentario)
     messages.success(request, 'Registro guardado.')
     return redirect(_url_dia('apptrainer:dia_resumen', dia.pk, fecha))
 

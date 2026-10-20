@@ -332,3 +332,11 @@ a.btn-soft { text-decoration: none; }
 .h-detalle { display: block; color: var(--lila-dark); font-weight: 700; }
 
 .h-nota { display: block; color: var(--lemon-ink); font-weight: 700; }
+
+/* ---------- comentarios de la rutina ---------- */
+.comentarios .card-title { display: block; margin-bottom: 8px; }
+.comentarios textarea { width: 100%; min-height: 96px; padding: 12px 14px; border-radius: 14px; border: 2px solid var(--line); background: #fbf9ff; font: inherit; font-size: 1rem; line-height: 1.4; resize: vertical; }
+.comentarios textarea:focus { outline: none; border-color: var(--lila-mid); background: #fff; box-shadow: 0 0 0 4px var(--lila-soft); }
+.contador { text-align: right; color: var(--muted); font-size: .8rem; font-weight: 700; margin-top: 4px; }
+.comentario-guardado p { white-space: normal; overflow-wrap: anywhere; }
+.cd-comentario { font-style: italic; margin-top: 2px; overflow-wrap: anywhere; }

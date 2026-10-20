@@ -58,7 +58,7 @@ def test_kg_texto_sin_ceros_de_mas():
 # ---------- guardar por tipo de carga ----------
 
 def test_guardar_barra_con_discos(cliente, dia1):
-    hip = ej(dia1, 'Hip thrust')
+    hip = ej(dia1, 'Peso muerto rumano')
     r = guardar_modo(cliente, dia1, **{f'modo_{hip.pk}': 'barra', f'barra_{hip.pk}': '20', f'discos_{hip.pk}': '30'})
     assert r.status_code == 302
     p = PesoEjercicio.objects.get()
@@ -75,7 +75,7 @@ def test_guardar_mancuernas(cliente, dia1):
 
 
 def test_cambiar_de_modo_actualiza_el_registro(cliente, dia1):
-    hip = ej(dia1, 'Hip thrust')
+    hip = ej(dia1, 'Peso muerto rumano')
     guardar_modo(cliente, dia1, **{f'modo_{hip.pk}': 'barra', f'barra_{hip.pk}': '20', f'discos_{hip.pk}': '30'})
     guardar_modo(cliente, dia1, **{f'modo_{hip.pk}': 'total', f'kg_{hip.pk}': '60'})
     p = PesoEjercicio.objects.get()
@@ -83,14 +83,14 @@ def test_cambiar_de_modo_actualiza_el_registro(cliente, dia1):
 
 
 def test_solo_se_validan_los_campos_del_modo_elegido(cliente, dia1):
-    hip = ej(dia1, 'Hip thrust')
+    hip = ej(dia1, 'Peso muerto rumano')
     # basura en "mancuerna" no importa si el modo es barra
     guardar_modo(cliente, dia1, **{f'modo_{hip.pk}': 'barra', f'barra_{hip.pk}': '20', f'mancuerna_{hip.pk}': 'xx'})
     assert PesoEjercicio.objects.get().kg == 20
 
 
 def test_error_en_un_campo_conserva_todo_lo_tipeado(cliente, dia1):
-    hip = ej(dia1, 'Hip thrust')
+    hip = ej(dia1, 'Peso muerto rumano')
     r = guardar_modo(cliente, dia1, **{f'modo_{hip.pk}': 'barra', f'barra_{hip.pk}': '20', f'discos_{hip.pk}': 'abc'})
     html = r.content.decode()
     assert r.status_code == 422 and not PesoEjercicio.objects.exists()
@@ -98,7 +98,7 @@ def test_error_en_un_campo_conserva_todo_lo_tipeado(cliente, dia1):
 
 
 def test_total_de_mancuernas_no_puede_pasar_el_maximo(cliente, dia1):
-    hip = ej(dia1, 'Hip thrust')
+    hip = ej(dia1, 'Sentadilla goblet')
     r = guardar_modo(cliente, dia1, **{f'modo_{hip.pk}': 'mancuernas', f'mancuerna_{hip.pk}': '300'})
     assert r.status_code == 422 and 'no puede superar 500' in r.content.decode()
 
@@ -127,7 +127,7 @@ def test_el_modo_de_la_vez_anterior_manda_sobre_el_habitual(cliente, dia1):
 
 
 def test_resumen_muestra_el_detalle(cliente, dia1):
-    hip = ej(dia1, 'Hip thrust')
+    hip = ej(dia1, 'Peso muerto rumano')
     guardar_modo(cliente, dia1, **{f'modo_{hip.pk}': 'barra', f'barra_{hip.pk}': '20', f'discos_{hip.pk}': '30'})
     html = cliente.get(reverse('apptrainer:dia_resumen', args=[dia1.pk])).content.decode()
     assert '20 + 30 = 50 kg' in html and '50 kg' in html
@@ -223,9 +223,9 @@ def test_exportar_por_rango_de_fechas(cliente, dia1, usuario):
         _sesion_con_peso(usuario, dia1, f, hip, 'total', total=D(kg))
     r = cliente.get(reverse('apptrainer:semana_excel'), {'desde': '2026-03-09', 'hasta': '2026-03-15'})
     assert 'registro-2026-03-09_a_2026-03-15.xlsx' in r['Content-Disposition']
-    assert [f[11] for f in _filas(r) if f[4] == 'Hip thrust'] == [40.0]
+    assert [f[12] for f in _filas(r) if f[4] == 'Hip thrust'] == [40.0]
     amplio = cliente.get(reverse('apptrainer:semana_excel'), {'desde': '2026-03-01', 'hasta': '2026-03-31'})
-    assert sorted(f[11] for f in _filas(amplio) if f[4] == 'Hip thrust') == [30.0, 40.0, 50.0]
+    assert sorted(f[12] for f in _filas(amplio) if f[4] == 'Hip thrust') == [30.0, 40.0, 50.0]
 
 
 def test_fechas_invertidas_se_ordenan_e_invalidas_usan_la_semana_actual(usuario):
@@ -242,11 +242,11 @@ def test_excel_incluye_detalle_e_indicaciones(cliente, dia1, usuario):
     r = cliente.get(reverse('apptrainer:semana_excel'))
     wb = load_workbook(io.BytesIO(r.content))
     encabezados = [c.value for c in wb['Registro'][1]]
-    assert encabezados[7:] == ['Tipo de carga', 'Barra (kg)', 'Discos (kg)', 'Por mancuerna (kg)', 'Total (kg)', 'Indicaciones']
+    assert encabezados[7:] == ['Tipo de carga', 'Barra (kg)', 'Discos (kg)', 'Cada lado (kg)', 'Por mancuerna (kg)', 'Total (kg)', 'Indicaciones']
     hip_fila = next(f for f in _filas(r) if f[4] == 'Hip thrust')
-    assert hip_fila[7:12] == ('Barra + discos', 20.0, 30.0, None, 50.0)
-    assert next(f for f in _filas(r) if f[4] == 'Máquina de aducción')[12] == 'Mantengo 3 seg cerrando'
-    assert [c.value for c in wb['Resumen'][1]][-1] == 'Carga total (kg)'
+    assert hip_fila[7:13] == ('Barra + discos', 20.0, 30.0, None, None, 50.0)
+    assert next(f for f in _filas(r) if f[4] == 'Máquina de aducción')[13] == 'Mantengo 3 seg cerrando'
+    assert [c.value for c in wb['Resumen'][1]][-2:] == ['Carga total (kg)', 'Comentarios']
     assert _filas(r, 'Resumen')[0][6] == 50.0
 
 

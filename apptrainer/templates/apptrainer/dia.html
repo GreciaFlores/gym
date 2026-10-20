@@ -66,7 +66,7 @@
             <fieldset class="carga {% if e.kg_error %}has-error{% endif %}" data-carga>
               <legend>Peso levantado</legend>
               <div class="carga-modos">
-                {% for valor, etiqueta in modos %}
+                {% for valor, etiqueta in e.modos_ui %}
                 <input type="radio" id="modo_{{ e.pk }}_{{ valor }}" name="modo_{{ e.pk }}" value="{{ valor }}" form="form-guardar" {% if e.carga.modo == valor %}checked{% endif %}>
                 <label for="modo_{{ e.pk }}_{{ valor }}">{{ etiqueta }}</label>
                 {% endfor %}
@@ -74,9 +74,15 @@
                 <div class="campos campos-barra">
                   <label class="campo"><span>Barra (kg)</span>
                     <input name="barra_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off" placeholder="20" value="{{ e.carga.barra }}" data-campo="barra"></label>
+                  {% if e.carga_por_lado %}
+                  <label class="campo"><span>Cada lado (kg)</span>
+                    <input name="lado_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="{{ e.carga.lado }}" data-campo="lado"></label>
+                  <p class="campo-ayuda">Discos de un solo lado: se cuentan los dos lados (× 2).</p>
+                  {% else %}
                   <label class="campo"><span>Discos (kg)</span>
                     <input name="discos_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="{{ e.carga.discos }}" data-campo="discos"></label>
                   <p class="campo-ayuda">Discos: la suma de los dos lados.</p>
+                  {% endif %}
                 </div>
                 <div class="campos campos-mancuernas">
                   <label class="campo"><span>Por mancuerna (kg)</span>
@@ -104,10 +110,17 @@
   <section class="card empty"><strong>Este día aún no tiene ejercicios</strong></section>
   {% endfor %}
 
+  <section class="card comentarios">
+    <label class="card-title" for="comentario">Comentarios de la rutina</label>
+    <textarea id="comentario" name="comentario" form="form-guardar" rows="3" maxlength="{{ max_comentario }}"
+              placeholder="Cómo te sentiste, cambios que hiciste, dudas para tu entrenador…" data-comentario>{{ comentario }}</textarea>
+    <p class="contador"><span data-contador>{{ comentario|length }}</span>/{{ max_comentario }}</p>
+  </section>
+
   <form id="form-guardar" class="card save-card" method="post" action="{% url 'apptrainer:dia_guardar' dia.pk %}" data-save-form>
     {% csrf_token %}
     <input type="hidden" name="fecha" value="{{ fecha|date:'Y-m-d' }}">
-    <p>Los ✓ se guardan al tocarlos. Los pesos se guardan con este botón.</p>
+    <p>Los ✓ se guardan al tocarlos. Los pesos y comentarios se guardan con este botón.</p>
     <button class="btn btn-block" type="submit"><svg class="icon"><use href="#i-check"/></svg>Guardar todo y ver resumen</button>
   </form>
 </div>

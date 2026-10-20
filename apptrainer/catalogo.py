@@ -47,6 +47,11 @@ CATALOGO = {
     'Posteriores en TRX': ('trx-posteriores', TOTAL),
 }
 
+# Ajustes de carga por ejercicio: tipos disponibles y si los discos se anotan por lado.
+AJUSTES = {
+    'Hip thrust': {'modos_permitidos': 'barra,total', 'carga_por_lado': True},
+}
+
 # Texto breve que describe cada imagen (accesibilidad y lectura rápida).
 DESCRIPCIONES = {
     'movilidad-tobillo': 'Rodilla adelantada sobre el pie apoyado',
@@ -89,3 +94,8 @@ DESCRIPCIONES = {
 def datos_de(nombre):
     """(imagen, carga_habitual) del ejercicio; valores vacíos si no está en el catálogo."""
     return CATALOGO.get(nombre, ('', TOTAL))
+
+
+def ajustes_de(nombre):
+    """Campos extra del ejercicio (tipos de carga disponibles, discos por lado)."""
+    return AJUSTES.get(nombre, {})

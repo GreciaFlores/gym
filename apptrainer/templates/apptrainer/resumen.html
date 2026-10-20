@@ -12,8 +12,15 @@
     <div class="tile tile-lila"><div class="label">Pesos anotados</div><div class="value">{{ n_con_peso }}/{{ total_con_peso }}</div></div>
   </div>
 
-  {% if not n_hechos and not n_con_peso %}
+  {% if not n_hechos and not n_con_peso and not comentario %}
     <section class="card empty"><strong>Todavía no hay registro para esta fecha</strong>Marca tus ejercicios y anota los pesos para verlos aquí.</section>
+  {% endif %}
+
+  {% if comentario %}
+  <section class="card comentario-guardado">
+    <h2 class="card-title">Tus comentarios</h2>
+    <p>{{ comentario|linebreaksbr }}</p>
+  </section>
   {% endif %}
 
   {% for b in bloques %}
