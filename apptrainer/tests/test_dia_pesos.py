@@ -62,7 +62,7 @@ def test_pesos_solo_en_zona_media_y_principal(cliente, dia1):
     ids_movilidad = Ejercicio.objects.filter(bloque__dia=dia1, bloque__tipo='movilidad')
     assert all(f'name="kg_{e.pk}"' in html for e in ids_con_peso)
     assert not any(f'name="kg_{e.pk}"' in html for e in ids_movilidad)
-    assert html.count('data-kg') == ids_con_peso.count() == 8
+    assert html.count('data-carga') == ids_con_peso.count() == 8
 
 
 def test_guardar_pesos_con_coma_y_punto(cliente, dia1, usuario):
@@ -114,11 +114,11 @@ def test_peso_anterior_aparece_como_referencia(cliente, dia1):
     ayer = timezone.localdate() - dt.timedelta(days=3)
     guardar(cliente, dia1, fecha=ayer, **{str(hip.pk): '37,5'})
     html = cliente.get(reverse('apptrainer:dia', args=[dia1.pk])).content.decode()
-    assert 'placeholder="antes 37,5"' in html
+    assert 'Anterior: 37,5 kg' in html
     # el valor de hoy no se toma como "anterior" de sí mismo
     guardar(cliente, dia1, **{str(hip.pk): '40'})
     html = cliente.get(reverse('apptrainer:dia', args=[dia1.pk])).content.decode()
-    assert 'placeholder="antes 37,5"' in html and 'value="40"' in html
+    assert 'Anterior: 37,5 kg' in html and 'value="40"' in html
 
 
 def test_guardar_exige_post_y_login(client, cliente, dia1):
@@ -162,7 +162,7 @@ def _abrir(respuesta):
 
 def test_semana_tiene_boton_de_excel(cliente, con_rutina):
     html = cliente.get(reverse('apptrainer:semana')).content.decode()
-    assert reverse('apptrainer:semana_excel') in html and 'Exportar Excel de la semana' in html
+    assert reverse('apptrainer:semana_excel') in html and 'Exportar Excel' in html
 
 
 def test_excel_semanal_incluye_hechos_y_pesos(cliente, dia1):
@@ -171,15 +171,17 @@ def test_excel_semanal_incluye_hechos_y_pesos(cliente, dia1):
     guardar(cliente, dia1, **{str(hip.pk): '42,5'})
     r = cliente.get(reverse('apptrainer:semana_excel'))
     assert r.status_code == 200 and r['Content-Type'] == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    assert 'attachment; filename="apptrainer-registro-semana-' in r['Content-Disposition']
+    assert 'attachment; filename="apptrainer-registro-' in r['Content-Disposition']
     wb = _abrir(r)
     filas = list(wb['Registro'].iter_rows(min_row=2, values_only=True))
     assert len(filas) == 12  # todos los ejercicios del día
     hip_fila = next(f for f in filas if f[4] == 'Hip thrust')
-    assert hip_fila[1] == 'Día 1' and hip_fila[3] == 'Trabajo principal' and hip_fila[6] == 'Sí' and hip_fila[7] == 42.5
-    assert next(f for f in filas if f[4] == 'Peso muerto rumano')[6:] == ('No', None)
+    assert hip_fila[1] == 'Día 1' and hip_fila[3] == 'Trabajo principal' and hip_fila[6] == 'Sí'
+    assert hip_fila[7] == 'Total' and hip_fila[11] == 42.5
+    rumano = next(f for f in filas if f[4] == 'Peso muerto rumano')
+    assert rumano[6:12] == ('No', None, None, None, None, None)
     resumen = list(wb['Resumen'].iter_rows(min_row=2, values_only=True))
-    assert resumen[0][3:] == ('En curso', 1, 12)
+    assert resumen[0][3:] == ('En curso', 1, 12, 42.5)
 
 
 def test_excel_semanal_solo_la_semana_actual_y_todo_el_historial(cliente, dia1, usuario):
@@ -188,9 +190,9 @@ def test_excel_semanal_solo_la_semana_actual_y_todo_el_historial(cliente, dia1, 
     guardar(cliente, dia1, fecha=vieja, **{str(hip.pk): '30'})
     guardar(cliente, dia1, **{str(hip.pk): '40'})
     semana = _abrir(cliente.get(reverse('apptrainer:semana_excel')))
-    assert [f[7] for f in semana['Registro'].iter_rows(min_row=2, values_only=True) if f[4] == 'Hip thrust'] == [40.0]
+    assert [f[11] for f in semana['Registro'].iter_rows(min_row=2, values_only=True) if f[4] == 'Hip thrust'] == [40.0]
     todo = _abrir(cliente.get(reverse('apptrainer:semana_excel'), {'todo': '1'}))
-    assert sorted(f[7] for f in todo['Registro'].iter_rows(min_row=2, values_only=True) if f[4] == 'Hip thrust') == [30.0, 40.0]
+    assert sorted(f[11] for f in todo['Registro'].iter_rows(min_row=2, values_only=True) if f[4] == 'Hip thrust') == [30.0, 40.0]
     assert 'historial' in cliente.get(reverse('apptrainer:semana_excel'), {'todo': '1'})['Content-Disposition']
 
 
@@ -200,8 +202,9 @@ def test_excel_semanal_vacio_no_falla(cliente, con_rutina):
 
 
 def test_excel_semanal_solo_datos_propios(client, dia1, usuario, otro_usuario):
-    guardar_servicio = services.guardar_pesos
-    guardar_servicio(usuario, dia1, timezone.localdate(), {ej(dia1, 'Hip thrust').pk: Decimal('40')})
+    from apptrainer.cargas import armar_carga
+    services.guardar_pesos(usuario, dia1, timezone.localdate(),
+                           {ej(dia1, 'Hip thrust').pk: armar_carga('total', total=Decimal('40'))})
     client.force_login(otro_usuario)
     wb = _abrir(client.get(reverse('apptrainer:semana_excel')))
     assert wb['Registro'].max_row == 1

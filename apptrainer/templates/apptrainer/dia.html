@@ -1,4 +1,5 @@
 {% extends 'apptrainer/base.html' %}
+{% load apptrainer_extras %}
 {% block title %}{{ dia.titulo }} · AppTrainer{% endblock %}
 {% block content %}
 <a class="back" href="{% url 'apptrainer:semana' %}"><svg class="icon"><use href="#i-back"/></svg>Mi semana</a>
@@ -46,26 +47,51 @@
             <button class="check" type="submit" aria-label="Marcar {{ e.nombre }}"><svg class="icon"><use href="#i-check"/></svg></button>
           </form>
           <div class="ex-body">
-            <div class="ex-name">{{ e.nombre }}</div>
-            {% if e.prescripcion or e.material or e.url_video %}
-            <div class="ex-meta">
-              {% if e.prescripcion %}<span class="pill">{{ e.prescripcion }}</span>{% endif %}
-              {% if e.material %}<span class="pill pill-sky">{{ e.material }}</span>{% endif %}
-              {% if e.url_video %}<a class="pill pill-pink video" href="{{ e.url_video }}" target="_blank" rel="noopener noreferrer"><svg class="icon"><use href="#i-play"/></svg>Video</a>{% endif %}
-            </div>
-            {% endif %}
-            {% if e.nota %}<p class="ex-note">{{ e.nota }}</p>{% endif %}
-            {% if b.con_peso %}
-            <div class="kg-row {% if e.kg_error %}has-error{% endif %}">
-              <label for="kg_{{ e.pk }}">Peso levantado</label>
-              <div class="kg-input">
-                <input id="kg_{{ e.pk }}" name="kg_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off"
-                       placeholder="{% if e.kg_previo %}antes {{ e.kg_previo }}{% else %}0{% endif %}" value="{{ e.kg_texto }}" data-kg
-                       {% if e.kg_error %}aria-invalid="true" aria-describedby="err_{{ e.pk }}"{% endif %}>
-                <span>kg</span>
+            <div class="ex-head">
+              <div class="ex-text">
+                <div class="ex-name">{{ e.nombre }}</div>
+                {% if e.prescripcion or e.material or e.url_video %}
+                <div class="ex-meta">
+                  {% if e.prescripcion %}<span class="pill">{{ e.prescripcion }}</span>{% endif %}
+                  {% if e.material %}<span class="pill pill-sky">{{ e.material }}</span>{% endif %}
+                  {% if e.url_video %}<a class="pill pill-pink video" href="{{ e.url_video }}" target="_blank" rel="noopener noreferrer"><svg class="icon"><use href="#i-play"/></svg>Video</a>{% endif %}
+                </div>
+                {% endif %}
               </div>
-              {% if e.kg_error %}<p class="field-error" id="err_{{ e.pk }}">{{ e.kg_error }}</p>{% endif %}
+              {% imagen_url e.imagen as src %}
+              {% if src %}<img class="ex-img" src="{{ src }}" alt="{{ e.imagen|descripcion }}" title="{{ e.imagen|descripcion }}" width="72" height="72" loading="lazy">{% endif %}
             </div>
+            {% if e.nota %}<p class="ex-note"><span class="ex-note-label">Entrenador</span>{{ e.nota }}</p>{% endif %}
+            {% if b.con_peso %}
+            <fieldset class="carga {% if e.kg_error %}has-error{% endif %}" data-carga>
+              <legend>Peso levantado</legend>
+              <div class="carga-modos">
+                {% for valor, etiqueta in modos %}
+                <input type="radio" id="modo_{{ e.pk }}_{{ valor }}" name="modo_{{ e.pk }}" value="{{ valor }}" form="form-guardar" {% if e.carga.modo == valor %}checked{% endif %}>
+                <label for="modo_{{ e.pk }}_{{ valor }}">{{ etiqueta }}</label>
+                {% endfor %}
+
+                <div class="campos campos-barra">
+                  <label class="campo"><span>Barra (kg)</span>
+                    <input name="barra_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off" placeholder="20" value="{{ e.carga.barra }}" data-campo="barra"></label>
+                  <label class="campo"><span>Discos (kg)</span>
+                    <input name="discos_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="{{ e.carga.discos }}" data-campo="discos"></label>
+                  <p class="campo-ayuda">Discos: la suma de los dos lados.</p>
+                </div>
+                <div class="campos campos-mancuernas">
+                  <label class="campo"><span>Por mancuerna (kg)</span>
+                    <input name="mancuerna_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="{{ e.carga.mancuerna }}" data-campo="mancuerna"></label>
+                  <p class="campo-ayuda">Se cuentan las dos mancuernas (× 2).</p>
+                </div>
+                <div class="campos campos-total">
+                  <label class="campo"><span>Peso total (kg)</span>
+                    <input name="kg_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="{{ e.carga.total }}" data-campo="total"></label>
+                </div>
+              </div>
+              <p class="carga-total">Total: <b data-total>{% if e.kg is not None %}{{ e.kg|kg }}{% else %}—{% endif %}</b> kg</p>
+              {% if e.previo %}<p class="carga-previo">Anterior: {{ e.previo.detalle }} <span>· {{ e.previo.sesion.fecha|date:"j/n" }}</span></p>{% endif %}
+              {% if e.kg_error %}<p class="field-error" role="alert">{{ e.kg_error }}</p>{% endif %}
+            </fieldset>
             {% endif %}
           </div>
         </article>

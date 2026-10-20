@@ -10,7 +10,7 @@ from openpyxl.chart import LineChart, Reference
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from .models import Bloque, Ejercicio, EjercicioHecho, PesoEjercicio, RegistroPeso, Rutina, Sesion
+from .models import TIPOS_CARGA, Bloque, Ejercicio, EjercicioHecho, PesoEjercicio, RegistroPeso, Rutina, Sesion
 
 VENTANA_MEDIA = 4
 LIMITE_DIAS = 366  # la fecha de una sesión puede estar a ±1 año de hoy
@@ -24,6 +24,18 @@ def fecha_valida(texto, hoy=None):
     except ValueError:
         return hoy
     return fecha if abs((fecha - hoy).days) <= LIMITE_DIAS else hoy
+
+
+def rango_valido(desde_txt, hasta_txt, hoy=None):
+    """(desde, hasta) ISO enviados por el usuario; inválidos -> semana actual. Si vienen
+    invertidos se ordenan."""
+    hoy = hoy or timezone.localdate()
+    try:
+        desde, hasta = dt.date.fromisoformat(desde_txt or ''), dt.date.fromisoformat(hasta_txt or '')
+    except ValueError:
+        desde = lunes_de(hoy)
+        return desde, desde + dt.timedelta(days=6)
+    return (desde, hasta) if desde <= hasta else (hasta, desde)
 
 
 def rutina_activa(usuario):
@@ -79,39 +91,44 @@ def alternar_ejercicio(usuario, ejercicio, fecha):
 
 
 def pesos_de(usuario, dia, fecha):
-    """{ejercicio_id: kg} registrados para ese día en esa fecha."""
-    return dict(
-        PesoEjercicio.objects.filter(
+    """{ejercicio_id: PesoEjercicio} registrados para ese día en esa fecha."""
+    return {
+        p.ejercicio_id: p
+        for p in PesoEjercicio.objects.filter(
             sesion__usuario=usuario, sesion__dia=dia, sesion__fecha=fecha
-        ).values_list('ejercicio_id', 'kg')
-    )
+        )
+    }
 
 
 def ultimos_pesos(usuario, dia, fecha):
-    """{ejercicio_id: kg} del registro más reciente anterior a `fecha` (referencia)."""
+    """{ejercicio_id: PesoEjercicio} más reciente anterior a `fecha` (como referencia)."""
     ultimos = {}
     registros = PesoEjercicio.objects.filter(
         sesion__usuario=usuario, ejercicio__bloque__dia=dia, sesion__fecha__lt=fecha
-    ).order_by('-sesion__fecha').values_list('ejercicio_id', 'kg')
-    for ejercicio_id, kg in registros:
-        ultimos.setdefault(ejercicio_id, kg)
+    ).order_by('-sesion__fecha')
+    for p in registros:
+        ultimos.setdefault(p.ejercicio_id, p)
     return ultimos
 
 
 @transaction.atomic
-def guardar_pesos(usuario, dia, fecha, pesos):
-    """Guarda {ejercicio_id: Decimal | None}; None borra el registro. Devuelve la sesión o None."""
+def guardar_pesos(usuario, dia, fecha, cargas):
+    """Guarda {ejercicio_id: Carga | None}; None borra el registro. Devuelve la sesión o None."""
     sesion = Sesion.objects.filter(usuario=usuario, dia=dia, fecha=fecha).first()
     if sesion is None:
-        if all(kg is None for kg in pesos.values()):
+        if all(c is None for c in cargas.values()):
             return None  # nada que guardar: no se crea una sesión vacía
         sesion = Sesion.objects.create(usuario=usuario, dia=dia, fecha=fecha)
-    for ejercicio_id, kg in pesos.items():
-        if kg is None:
+    for ejercicio_id, carga in cargas.items():
+        if carga is None:
             PesoEjercicio.objects.filter(sesion=sesion, ejercicio_id=ejercicio_id).delete()
         else:
             PesoEjercicio.objects.update_or_create(
-                sesion=sesion, ejercicio_id=ejercicio_id, defaults={'kg': kg}
+                sesion=sesion, ejercicio_id=ejercicio_id,
+                defaults={
+                    'modo': carga.modo, 'kg': carga.kg, 'kg_barra': carga.barra,
+                    'kg_discos': carga.discos, 'kg_mancuerna': carga.mancuerna,
+                },
             )
     return sesion
 
@@ -124,6 +141,76 @@ def resumen_semana(usuario, rutina, hoy):
         usuario=usuario, dia__rutina=rutina, fecha__range=(lunes, domingo), completada=True
     ).values('dia').distinct().count()
     return hechas, rutina.dias.count()
+
+
+def _resumen_sesion(sesion, ejercicios, hechos, pesos):
+    """Totales de una sesión: ejercicios hechos y carga total (suma de los pesos anotados)."""
+    carga = sum((pesos[(sesion.pk, e.pk)].kg for e in ejercicios if (sesion.pk, e.pk) in pesos), Decimal(0))
+    return {
+        'fecha': sesion.fecha,
+        'completada': sesion.completada,
+        'hechos': sum((sesion.pk, e.pk) in hechos for e in ejercicios),
+        'total': len(ejercicios),
+        'carga': carga,
+        'con_peso': sum((sesion.pk, e.pk) in pesos for e in ejercicios),
+    }
+
+
+def cierre_semanal(usuario, rutina, hoy):
+    """Comparación día por día: semana anterior (cierre) vs. semana en curso.
+
+    Devuelve {'dias': [...], 'anterior': (lunes, domingo), 'actual': (lunes, domingo),
+    'carga_anterior': Decimal, 'carga_actual': Decimal}. Cada día trae su resumen de ambas
+    semanas y, por ejercicio con peso, el registro de cada una (para ver total o detalle).
+    """
+    lunes = lunes_de(hoy)
+    lunes_ant = lunes - dt.timedelta(days=7)
+    rango_ant = (lunes_ant, lunes - dt.timedelta(days=1))
+    rango_act = (lunes, lunes + dt.timedelta(days=6))
+
+    dias = list(rutina.dias.order_by('orden'))
+    ejercicios = {d.pk: [] for d in dias}
+    for e in Ejercicio.objects.filter(bloque__dia__in=dias).select_related('bloque').order_by('bloque__orden', 'orden'):
+        ejercicios[e.bloque.dia_id].append(e)
+
+    sesiones = list(
+        Sesion.objects.filter(usuario=usuario, dia__in=dias, fecha__range=(lunes_ant, rango_act[1]))
+        .order_by('fecha')
+    )
+    hechos = set(EjercicioHecho.objects.filter(sesion__in=sesiones).values_list('sesion_id', 'ejercicio_id'))
+    pesos = {(p.sesion_id, p.ejercicio_id): p for p in PesoEjercicio.objects.filter(sesion__in=sesiones)}
+
+    def ultima(dia, rango):  # sesión más reciente de ese día dentro del rango
+        candidatas = [s for s in sesiones if s.dia_id == dia.pk and rango[0] <= s.fecha <= rango[1]]
+        return candidatas[-1] if candidatas else None
+
+    filas, carga_ant, carga_act = [], Decimal(0), Decimal(0)
+    for d in dias:
+        ej = ejercicios[d.pk]
+        s_ant, s_act = ultima(d, rango_ant), ultima(d, rango_act)
+        ant = _resumen_sesion(s_ant, ej, hechos, pesos) if s_ant else None
+        act = _resumen_sesion(s_act, ej, hechos, pesos) if s_act else None
+        carga_ant += ant['carga'] if ant else 0
+        carga_act += act['carga'] if act else 0
+        filas.append({
+            'dia': d, 'anterior': ant, 'actual': act,
+            'delta': (act['carga'] - ant['carga']) if ant and act else None,
+            'ejercicios': [
+                {
+                    'ejercicio': e,
+                    'anterior': pesos.get((s_ant.pk, e.pk)) if s_ant else None,
+                    'actual': pesos.get((s_act.pk, e.pk)) if s_act else None,
+                }
+                for e in ej
+                if e.bloque.tipo != Bloque.MOVILIDAD
+                and ((s_ant and (s_ant.pk, e.pk) in pesos) or (s_act and (s_act.pk, e.pk) in pesos))
+            ],
+        })
+    return {
+        'dias': filas, 'anterior': rango_ant, 'actual': rango_act,
+        'carga_anterior': carga_ant, 'carga_actual': carga_act,
+        'hay_anterior': any(f['anterior'] for f in filas),
+    }
 
 
 def estado_semana(usuario, rutina, hoy):
@@ -221,8 +308,9 @@ def _estilizar_encabezado(ws, ancho_columnas):
 def exportar_registro_excel(usuario, desde=None, hasta=None):
     """Excel con el registro de entrenamientos del usuario entre `desde` y `hasta` (inclusive).
 
-    Hoja "Registro": una fila por ejercicio de cada sesión, con si se hizo y el peso.
-    Hoja "Resumen": una fila por sesión con su estado.
+    Hoja "Registro": una fila por ejercicio de cada sesión, con si se hizo y el peso
+    (tipo de carga, barra, discos, por mancuerna y total).
+    Hoja "Resumen": una fila por sesión con su estado y la carga total.
     """
     sesiones = Sesion.objects.filter(usuario=usuario).select_related('dia').order_by('fecha', 'dia__orden')
     if desde:
@@ -232,10 +320,7 @@ def exportar_registro_excel(usuario, desde=None, hasta=None):
     sesiones = list(sesiones)
 
     hechos = set(EjercicioHecho.objects.filter(sesion__in=sesiones).values_list('sesion_id', 'ejercicio_id'))
-    pesos = {
-        (sid, eid): kg
-        for sid, eid, kg in PesoEjercicio.objects.filter(sesion__in=sesiones).values_list('sesion_id', 'ejercicio_id', 'kg')
-    }
+    pesos = {(p.sesion_id, p.ejercicio_id): p for p in PesoEjercicio.objects.filter(sesion__in=sesiones)}
     ejercicios_por_dia = {}
     for s in sesiones:
         if s.dia_id not in ejercicios_por_dia:
@@ -247,35 +332,46 @@ def exportar_registro_excel(usuario, desde=None, hasta=None):
     wb = Workbook()
     registro = wb.active
     registro.title = 'Registro'
-    registro.append(['Fecha', 'Día', 'Enfoque', 'Bloque', 'Ejercicio', 'Series y reps', 'Hecho', 'Peso (kg)'])
+    registro.append([
+        'Fecha', 'Día', 'Enfoque', 'Bloque', 'Ejercicio', 'Series y reps', 'Hecho',
+        'Tipo de carga', 'Barra (kg)', 'Discos (kg)', 'Por mancuerna (kg)', 'Total (kg)', 'Indicaciones',
+    ])
     resumen = wb.create_sheet('Resumen')
-    resumen.append(['Fecha', 'Día', 'Enfoque', 'Estado', 'Ejercicios hechos', 'Total de ejercicios'])
+    resumen.append(['Fecha', 'Día', 'Enfoque', 'Estado', 'Ejercicios hechos', 'Total de ejercicios', 'Carga total (kg)'])
 
     nombres_bloque = dict(Bloque.TIPOS)
+    nombres_carga = dict(TIPOS_CARGA)
+    numero = lambda v: float(v) if v is not None else None  # noqa: E731
     for s in sesiones:
         ejercicios = ejercicios_por_dia[s.dia_id]
-        n_hechos = 0
+        n_hechos, carga_total = 0, Decimal(0)
         for e in ejercicios:
             hecho = (s.pk, e.pk) in hechos
             n_hechos += hecho
-            kg = pesos.get((s.pk, e.pk))
+            p = pesos.get((s.pk, e.pk))
+            carga_total += p.kg if p else 0
             registro.append([
                 s.fecha, s.dia.titulo, s.dia.enfoque, nombres_bloque[e.bloque.tipo], e.nombre,
-                e.prescripcion, 'Sí' if hecho else 'No', float(kg) if kg is not None else None,
+                e.prescripcion, 'Sí' if hecho else 'No',
+                nombres_carga[p.modo] if p else None,
+                numero(p.kg_barra) if p else None, numero(p.kg_discos) if p else None,
+                numero(p.kg_mancuerna) if p else None, numero(p.kg) if p else None, e.nota,
             ])
         estado = 'Completado' if s.completada else ('En curso' if n_hechos else 'Pendiente')
-        resumen.append([s.fecha, s.dia.titulo, s.dia.enfoque, estado, n_hechos, len(ejercicios)])
+        resumen.append([s.fecha, s.dia.titulo, s.dia.enfoque, estado, n_hechos, len(ejercicios), float(carga_total)])
 
-    _estilizar_encabezado(registro, [13, 10, 20, 18, 42, 16, 9, 12])
-    _estilizar_encabezado(resumen, [13, 10, 20, 14, 18, 20])
+    _estilizar_encabezado(registro, [13, 10, 20, 18, 42, 16, 9, 15, 11, 11, 18, 11, 44])
+    _estilizar_encabezado(resumen, [13, 10, 20, 14, 18, 20, 16])
     for fila in registro.iter_rows(min_row=2):
         fila[0].number_format = 'DD/MM/YYYY'
-        fila[7].number_format = '0.0#'
+        for celda in fila[8:12]:
+            celda.number_format = '0.0#'
         fila[6].alignment = Alignment(horizontal='center')
         if fila[6].value == 'Sí':
             fila[6].fill = PatternFill('solid', fgColor='CDF3E4')
     for fila in resumen.iter_rows(min_row=2):
         fila[0].number_format = 'DD/MM/YYYY'
+        fila[6].number_format = '0.0#'
     registro.auto_filter.ref = registro.dimensions
 
     buffer = io.BytesIO()

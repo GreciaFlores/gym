@@ -26,12 +26,26 @@
   {% endfor %}
 </ul>
 
-<section class="card export-card">
-  <h2 class="card-title">Exportar registro</h2>
-  <p class="muted">Semana del {{ lunes|date:"j \d\e F" }} al {{ domingo|date:"j \d\e F" }}: ejercicios hechos y pesos levantados.</p>
-  <a class="btn btn-block" href="{% url 'apptrainer:semana_excel' %}"><svg class="icon"><use href="#i-download"/></svg>Exportar Excel de la semana</a>
-  <p class="export-alt"><a href="{% url 'apptrainer:semana_excel' %}?todo=1">Descargar todo el historial</a></p>
-</section>
+<form class="card export-card" method="get" action="{% url 'apptrainer:semana_excel' %}">
+  <h2 class="card-title">Exportar registro a Excel</h2>
+  <p class="muted">Elige las fechas: incluye ejercicios hechos y el peso de cada uno.</p>
+  <div class="form-row">
+    <div class="field">
+      <label for="desde">Desde</label>
+      <input type="date" id="desde" name="desde" value="{{ lunes|date:'Y-m-d' }}" required>
+    </div>
+    <div class="field">
+      <label for="hasta">Hasta</label>
+      <input type="date" id="hasta" name="hasta" value="{{ domingo|date:'Y-m-d' }}" required>
+    </div>
+  </div>
+  <div class="form-actions"><button class="btn btn-block" type="submit"><svg class="icon"><use href="#i-download"/></svg>Exportar Excel</button></div>
+  <p class="export-alt">
+    <a href="{% url 'apptrainer:semana_excel' %}?desde={{ lunes|date:'Y-m-d' }}&amp;hasta={{ domingo|date:'Y-m-d' }}">Esta semana</a> ·
+    <a href="{% url 'apptrainer:semana_excel' %}?desde={{ lunes_anterior|date:'Y-m-d' }}&amp;hasta={{ domingo_anterior|date:'Y-m-d' }}">Semana pasada</a> ·
+    <a href="{% url 'apptrainer:semana_excel' %}?todo=1">Todo el historial</a>
+  </p>
+</form>
 {% else %}
 <section class="card empty"><strong>Aún no tienes una rutina</strong>Cuando se cargue tu plan semanal, lo verás aquí.</section>
 {% endif %}

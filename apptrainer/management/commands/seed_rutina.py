@@ -2,7 +2,8 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from apptrainer.models import Bloque, Dia, Ejercicio, Rutina
+from apptrainer.catalogo import datos_de
+from apptrainer.models import Bloque, Dia, Ejercicio, Rutina, Sesion
 
 MOV, MEDIA, PRINCIPAL = Bloque.MOVILIDAD, Bloque.ZONA_MEDIA, Bloque.PRINCIPAL
 
@@ -15,6 +16,7 @@ YT_ESCAPULAR = 'https://www.youtube.com/shorts/nZQvwTXwYaM'
 YT_HOMBRO_PARED = 'https://www.youtube.com/shorts/L9HYbrTq-Xs'
 
 # Cada ejercicio: (nombre, prescripción, nota, material, video, grupo).
+# La nota es la indicación del entrenador, escrita tal cual aparece en el documento.
 # Mismo número de grupo dentro de un bloque = ejercicios combinados.
 RUTINA = {
     'nombre': 'Rutina semanal',
@@ -29,14 +31,14 @@ RUTINA = {
                     ('Movilidad de cadera en sentadilla profunda', '', '', '', YT_CADERA_SENTADILLA, None),
                 ]),
                 (MEDIA, [
-                    ('Máquina de aducción', '3x12', 'Mantener 3 seg cerrando.', 'Máquina', '', 1),
-                    ('Drop serie en máquina de abducción', '3x8-8-8', 'Ir bajando el peso.', 'Máquina', '', 1),
-                    ('Plancha sobre fitball', '3x10', '10 respiraciones profundas por serie.', 'Fitball', '', None),
+                    ('Máquina de aducción', '3x12', 'Mantengo 3 seg cerrando', 'Máquina', '', 1),
+                    ('Drop serie en máquina de abducción', '3x8-8-8', 'Vas bajando el peso', 'Máquina', '', 1),
+                    ('Plancha sobre fitball', '3x10', 'Respiraciones profundas', 'Fitball', '', None),
                 ]),
                 (PRINCIPAL, [
                     ('Hip thrust', '3x10', '', '', '', 1),
                     ('Elevaciones de cadera en colchoneta', '3x10', '', 'Colchoneta', '', 1),
-                    ('Sentadilla sumo', '3x6-6-6', 'Superserie con sentadilla goblet.', '', '', 2),
+                    ('Sentadilla sumo', '3x6-6-6', 'Superserie', '', '', 2),
                     ('Sentadilla goblet', '3x10', '', '', '', 2),
                     ('Peso muerto rumano', '3x10', '', '', '', None),
                 ]),
@@ -59,13 +61,13 @@ RUTINA = {
                 ]),
                 (PRINCIPAL, [
                     ('Flexiones de brazo', '3xfallo', '', '', '', 1),
-                    ('Bíceps con barra', '3x10', '', 'Barra', '', 1),
+                    ('Bíceps con barra', '3x10', 'Barra normal', 'Barra', '', 1),
                     ('Empuje de rodillas en landmine', '3x10', '', 'Landmine', '', 2),
-                    ('Bíceps martillo isométrico alternado', '3x10', '', 'Mancuernas', '', 2),
-                    ('Máquina de espalda', '3x10', 'Agarre prono.', 'Máquina', '', 3),
+                    ('Bíceps martillo iso alternado', '3x10', '', 'Mancuernas', '', 2),
+                    ('Máquina de espalda', '3x10', 'Agarre prono', 'Máquina', '', 3),
                     ('Fondos en cajón', '3xfallo', '', 'Cajón', '', 3),
-                    ('Remo horizontal en máquina', '3x8', 'Agarre neutro. Superserie con tríceps tras nuca.', 'Máquina', '', 4),
-                    ('Tríceps tras nuca', '3x12', 'Con disco o mancuerna.', 'Disco o mancuerna', '', 4),
+                    ('Remo horizontal en máquina', '3x8', 'Agarre neutro. Superserie', 'Máquina', '', 4),
+                    ('Tríceps tras nuca', '3x12', 'Con disco o mancuerna', 'Disco o mancuerna', '', 4),
                 ]),
             ],
         },
@@ -84,7 +86,7 @@ RUTINA = {
                     ('Puente con fitball en rodillas', '', '', 'Fitball', '', None),
                 ]),
                 (PRINCIPAL, [
-                    ('Sentadilla con empuje', '3x12', 'Alternar con máquina sissy (usar mancuernas).', 'Mancuernas', '', None),
+                    ('Sentadilla con empuje', '3x12', 'Alternar con máquina sysy (usar mancuernas)', 'Mancuernas', '', None),
                     ('Sentadilla búlgara', '3x10', '', '', '', 1),
                     ('Vuelos laterales', '3x12', '', 'Mancuernas', '', 1),
                     ('Step up', '3x8', '', 'Cajón', '', 2),
@@ -101,9 +103,13 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--usuario', required=True, help='Nombre de usuario que recibirá la rutina.')
+        parser.add_argument(
+            '--forzar', action='store_true',
+            help='Reemplaza la rutina aunque ya tenga entrenamientos registrados (BORRA ese historial).',
+        )
 
     @transaction.atomic
-    def handle(self, *args, usuario, **opts):
+    def handle(self, *args, usuario, forzar=False, **opts):
         try:
             user = get_user_model().objects.get(username=usuario)
         except get_user_model().DoesNotExist:
@@ -112,6 +118,14 @@ class Command(BaseCommand):
             )
 
         # Idempotente: volver a correrlo reemplaza la rutina cargada antes por este comando.
+        # Reemplazarla borra sus sesiones y pesos, así que se pide confirmación explícita.
+        if not forzar and Sesion.objects.filter(
+            usuario=user, dia__rutina__nombre=RUTINA['nombre']
+        ).exists():
+            raise CommandError(
+                f'"{usuario}" ya tiene entrenamientos registrados en esta rutina. '
+                'Volver a cargarla los BORRARÍA. Si de verdad quieres reemplazarla, usa --forzar.'
+            )
         Rutina.objects.filter(usuario=user, nombre=RUTINA['nombre']).delete()
         rutina = Rutina.objects.create(usuario=user, nombre=RUTINA['nombre'], activa=True)
         for orden_dia, d in enumerate(RUTINA['dias'], start=1):
@@ -125,6 +139,7 @@ class Command(BaseCommand):
                     Ejercicio(
                         bloque=bloque, orden=i, nombre=nombre, prescripcion=prescripcion,
                         nota=nota, material=material, url_video=video, grupo=grupo,
+                        imagen=datos_de(nombre)[0], carga_habitual=datos_de(nombre)[1],
                     )
                     for i, (nombre, prescripcion, nota, material, video, grupo)
                     in enumerate(ejercicios, start=1)

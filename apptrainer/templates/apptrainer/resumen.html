@@ -1,4 +1,5 @@
 {% extends 'apptrainer/base.html' %}
+{% load apptrainer_extras %}
 {% block title %}Resumen · {{ dia.titulo }} · AppTrainer{% endblock %}
 {% block content %}
 <a class="back" href="{{ url_editar }}"><svg class="icon"><use href="#i-back"/></svg>Volver a editar</a>
@@ -22,8 +23,8 @@
       {% for e in b.ejercicios %}
       <li>
         <span class="state {% if e.hecho %}state-ok{% endif %}" aria-label="{% if e.hecho %}Hecho{% else %}Sin hacer{% endif %}">{% if e.hecho %}<svg class="icon"><use href="#i-check"/></svg>{% endif %}</span>
-        <div class="h-date"><b>{{ e.nombre }}</b>{% if e.prescripcion %}<small>{{ e.prescripcion }}</small>{% endif %}</div>
-        {% if b.con_peso %}<span class="h-kg">{% if e.kg is not None %}{{ e.kg_texto }} kg{% else %}<span class="muted">—</span>{% endif %}</span>{% endif %}
+        <div class="h-date"><b>{{ e.nombre }}</b>{% if e.prescripcion %}<small>{{ e.prescripcion }}</small>{% endif %}{% if e.nota %}<small class="h-nota">{{ e.nota }}</small>{% endif %}{% if e.guardado and e.guardado.modo != 'total' %}<small class="h-detalle">{{ e.guardado.detalle }}</small>{% endif %}</div>
+        {% if b.con_peso %}<span class="h-kg">{% if e.kg is not None %}{{ e.kg|kg }} kg{% else %}<span class="muted">—</span>{% endif %}</span>{% endif %}
       </li>
       {% endfor %}
     </ul>

@@ -39,7 +39,6 @@
   <nav class="tabbar" aria-label="Principal">
     <a class="tab" href="{% url 'apptrainer:hoy' %}" {% if seccion == 'hoy' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-hoy"/></svg>Hoy</a>
     <a class="tab" href="{% url 'apptrainer:semana' %}" {% if seccion == 'semana' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-semana"/></svg>Semana</a>
-    <a class="tab" href="{% url 'apptrainer:peso' %}" {% if seccion == 'peso' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-peso"/></svg>Peso</a>
   </nav>
   {% endblock %}
 

@@ -40,15 +40,37 @@
     input.addEventListener('change', function () { if (input.value) input.form.submit(); });
   });
 
-  // --- Pesos por ejercicio ---
+  // --- Peso por ejercicio: total en vivo y marca automática ---
   var sinGuardar = false;
-  document.querySelectorAll('input[data-kg]').forEach(function (input) {
-    input.addEventListener('input', function () { sinGuardar = true; });
-    // Si anotas un peso válido, el ejercicio cuenta como hecho (sin pedirte otro toque).
-    input.addEventListener('change', function () {
-      var card = input.closest('.ex');
+  function numero(texto) {
+    var t = (texto || '').trim().replace(',', '.');
+    return /^\d+(\.\d{1,2})?$/.test(t) ? parseFloat(t) : null;
+  }
+  function calcularTotal(bloque) {
+    var modo = bloque.querySelector('input[type=radio]:checked');
+    var v = function (campo) { var i = bloque.querySelector('[data-campo=' + campo + ']'); return i ? numero(i.value) : null; };
+    modo = modo ? modo.value : 'total';
+    if (modo === 'barra') { var b = v('barra'), d = v('discos'); return (b === null && d === null) ? null : (b || 0) + (d || 0); }
+    if (modo === 'mancuernas') { var m = v('mancuerna'); return m === null ? null : m * 2; }
+    return v('total');
+  }
+  function formato(n) { return (Math.round(n * 100) / 100).toString().replace('.', ','); }
+
+  document.querySelectorAll('[data-carga]').forEach(function (bloque) {
+    var salida = bloque.querySelector('[data-total]');
+    function actualizar() {
+      var total = calcularTotal(bloque);
+      salida.textContent = total === null ? '—' : formato(total);
+      return total;
+    }
+    bloque.addEventListener('input', function () { sinGuardar = true; actualizar(); });
+    bloque.addEventListener('change', function () {
+      sinGuardar = true;
+      var total = actualizar();
+      // Si anotas un peso válido, el ejercicio cuenta como hecho (sin pedirte otro toque).
+      var card = bloque.closest('.ex');
       var toggle = card && card.querySelector('form[data-toggle]');
-      if (/^\d+([.,]\d{1,2})?$/.test(input.value.trim()) && toggle && !card.classList.contains('is-done')) {
+      if (total && toggle && !card.classList.contains('is-done')) {
         if (toggle.requestSubmit) toggle.requestSubmit();
         else toggle.dispatchEvent(new Event('submit', { cancelable: true }));
       }

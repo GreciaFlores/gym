@@ -5,6 +5,15 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction
 from django.db.models import Q
 
+CARGA_TOTAL = 'total'
+CARGA_BARRA = 'barra'
+CARGA_MANCUERNAS = 'mancuernas'
+TIPOS_CARGA = [
+    (CARGA_BARRA, 'Barra + discos'),
+    (CARGA_MANCUERNAS, 'Mancuernas'),
+    (CARGA_TOTAL, 'Total'),
+]
+
 DIAS_SEMANA = [
     (0, 'Lunes'), (1, 'Martes'), (2, 'Miércoles'), (3, 'Jueves'),
     (4, 'Viernes'), (5, 'Sábado'), (6, 'Domingo'),
@@ -111,6 +120,14 @@ class Ejercicio(models.Model):
         'grupo combinado', null=True, blank=True,
         help_text='Ejercicios del mismo bloque con el mismo número se hacen combinados.',
     )
+    carga_habitual = models.CharField(
+        'tipo de carga habitual', max_length=10, choices=TIPOS_CARGA, default=CARGA_TOTAL,
+        help_text='Cómo se anota el peso por defecto: barra + discos, mancuernas o total.',
+    )
+    imagen = models.CharField(
+        max_length=60, blank=True,
+        help_text='Nombre del archivo en static/apptrainer/ejercicios/ (sin .svg).',
+    )
 
     class Meta:
         ordering = ['bloque', 'orden']
@@ -156,12 +173,23 @@ class EjercicioHecho(models.Model):
 
 
 class PesoEjercicio(models.Model):
-    """Peso (kg) levantado en un ejercicio durante una sesión."""
+    """Peso levantado en un ejercicio durante una sesión.
+
+    `kg` es siempre el total levantado. Según `modo` se guarda además el detalle:
+    barra + discos (`kg_barra`, `kg_discos`) o por mancuerna (`kg_mancuerna`, cuenta x2).
+    """
 
     sesion = models.ForeignKey(Sesion, on_delete=models.CASCADE, related_name='pesos')
     ejercicio = models.ForeignKey(Ejercicio, on_delete=models.CASCADE, related_name='pesos')
+    modo = models.CharField(max_length=10, choices=TIPOS_CARGA, default=CARGA_TOTAL)
+    kg_barra = models.DecimalField(
+        'peso de la barra (kg)', max_digits=5, decimal_places=2, null=True, blank=True)
+    kg_discos = models.DecimalField(
+        'discos agregados (kg)', max_digits=5, decimal_places=2, null=True, blank=True)
+    kg_mancuerna = models.DecimalField(
+        'peso por mancuerna (kg)', max_digits=5, decimal_places=2, null=True, blank=True)
     kg = models.DecimalField(
-        'peso (kg)', max_digits=5, decimal_places=2,
+        'peso total (kg)', max_digits=5, decimal_places=2,
         validators=[MinValueValidator(Decimal('0.01')), MaxValueValidator(500)],
     )
 
@@ -174,6 +202,12 @@ class PesoEjercicio(models.Model):
 
     def __str__(self):
         return f'{self.ejercicio} · {self.kg} kg'
+
+    @property
+    def detalle(self):
+        """Texto del desglose: "20 + 30 = 50 kg", "2 × 12 = 24 kg" o "50 kg"."""
+        from .cargas import detalle_texto
+        return detalle_texto(self.modo, self.kg_barra, self.kg_discos, self.kg_mancuerna, self.kg)
 
 
 class RegistroPeso(models.Model):
