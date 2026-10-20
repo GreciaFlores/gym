@@ -1,0 +1,114 @@
+{% extends 'apptrainer/base.html' %}
+{% load apptrainer_extras %}
+{% block title %}{{ dia.titulo }} · AppTrainer{% endblock %}
+{% block content %}
+<a class="back" href="{% url 'apptrainer:semana' %}"><svg class="icon"><use href="#i-back"/></svg>Mi semana</a>
+<h1 class="page-title">{{ dia.titulo }}</h1>
+<p class="page-sub">{{ dia.enfoque }}</p>
+
+<form class="date-bar" method="get" action="{% url 'apptrainer:dia' dia.pk %}">
+  <label class="date-field" for="fecha">
+    <svg class="icon"><use href="#i-semana"/></svg>
+    <span class="sr-only">Fecha de la sesión</span>
+    <input type="date" id="fecha" name="fecha" value="{{ fecha|date:'Y-m-d' }}" data-autosubmit required>
+  </label>
+  <a class="pill {% if es_hoy %}pill-active{% endif %}" href="?fecha={{ hoy_iso }}">Hoy</a>
+  <a class="pill {% if es_manana %}pill-active{% endif %}" href="?fecha={{ manana_iso }}">Mañana</a>
+  <noscript><button class="btn btn-soft" type="submit">Ir</button></noscript>
+</form>
+<p class="date-long">{{ fecha|date:"l j \d\e F \d\e Y" }}</p>
+
+<div class="progress-sticky">
+  <div class="progress-card" data-progress>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ porcentaje }}"><i style="width: {{ porcentaje }}%"></i></div>
+    <div class="progress-num" data-num>{{ n_hechos }}/{{ total }}</div>
+  </div>
+</div>
+
+<div class="stack">
+  <div class="done-banner {% if total and n_hechos == total %}show{% endif %}" data-done>
+    <svg class="icon"><use href="#i-check"/></svg>¡Sesión completa! Gran trabajo 💜
+  </div>
+
+  {% for b in bloques %}
+  <section class="block block-{{ b.tipo }}">
+    <div class="block-head">
+      <h2>{{ b.titulo }}</h2>
+      <span class="block-count" data-count>{{ b.hechos }}/{{ b.total }}</span>
+    </div>
+    <div class="exercises">
+      {% for item in b.items %}
+        {% if item|length > 1 %}<div class="combo"><span class="combo-label">Combinado</span>{% endif %}
+        {% for e in item %}
+        <article class="ex {% if e.hecho %}is-done{% endif %}">
+          <form method="post" action="{% url 'apptrainer:alternar' e.pk %}" data-toggle>
+            {% csrf_token %}
+            <input type="hidden" name="fecha" value="{{ fecha|date:'Y-m-d' }}">
+            <button class="check" type="submit" aria-label="Marcar {{ e.nombre }}"><svg class="icon"><use href="#i-check"/></svg></button>
+          </form>
+          <div class="ex-body">
+            <div class="ex-head">
+              <div class="ex-text">
+                <div class="ex-name">{{ e.nombre }}</div>
+                {% if e.prescripcion or e.material or e.url_video %}
+                <div class="ex-meta">
+                  {% if e.prescripcion %}<span class="pill">{{ e.prescripcion }}</span>{% endif %}
+                  {% if e.material %}<span class="pill pill-sky">{{ e.material }}</span>{% endif %}
+                  {% if e.url_video %}<a class="pill pill-pink video" href="{{ e.url_video }}" target="_blank" rel="noopener noreferrer"><svg class="icon"><use href="#i-play"/></svg>Video</a>{% endif %}
+                </div>
+                {% endif %}
+              </div>
+              {% imagen_url e.imagen as src %}
+              {% if src %}<img class="ex-img" src="{{ src }}" alt="{{ e.imagen|descripcion }}" title="{{ e.imagen|descripcion }}" width="72" height="72" loading="lazy">{% endif %}
+            </div>
+            {% if e.nota %}<p class="ex-note"><span class="ex-note-label">Entrenador</span>{{ e.nota }}</p>{% endif %}
+            {% if b.con_peso %}
+            <fieldset class="carga {% if e.kg_error %}has-error{% endif %}" data-carga>
+              <legend>Peso levantado</legend>
+              <div class="carga-modos">
+                {% for valor, etiqueta in modos %}
+                <input type="radio" id="modo_{{ e.pk }}_{{ valor }}" name="modo_{{ e.pk }}" value="{{ valor }}" form="form-guardar" {% if e.carga.modo == valor %}checked{% endif %}>
+                <label for="modo_{{ e.pk }}_{{ valor }}">{{ etiqueta }}</label>
+                {% endfor %}
+
+                <div class="campos campos-barra">
+                  <label class="campo"><span>Barra (kg)</span>
+                    <input name="barra_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off" placeholder="20" value="{{ e.carga.barra }}" data-campo="barra"></label>
+                  <label class="campo"><span>Discos (kg)</span>
+                    <input name="discos_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="{{ e.carga.discos }}" data-campo="discos"></label>
+                  <p class="campo-ayuda">Discos: la suma de los dos lados.</p>
+                </div>
+                <div class="campos campos-mancuernas">
+                  <label class="campo"><span>Por mancuerna (kg)</span>
+                    <input name="mancuerna_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="{{ e.carga.mancuerna }}" data-campo="mancuerna"></label>
+                  <p class="campo-ayuda">Se cuentan las dos mancuernas (× 2).</p>
+                </div>
+                <div class="campos campos-total">
+                  <label class="campo"><span>Peso total (kg)</span>
+                    <input name="kg_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="{{ e.carga.total }}" data-campo="total"></label>
+                </div>
+              </div>
+              <p class="carga-total">Total: <b data-total>{% if e.kg is not None %}{{ e.kg|kg }}{% else %}—{% endif %}</b> kg</p>
+              {% if e.previo %}<p class="carga-previo">Anterior: {{ e.previo.detalle }} <span>· {{ e.previo.sesion.fecha|date:"j/n" }}</span></p>{% endif %}
+              {% if e.kg_error %}<p class="field-error" role="alert">{{ e.kg_error }}</p>{% endif %}
+            </fieldset>
+            {% endif %}
+          </div>
+        </article>
+        {% endfor %}
+        {% if item|length > 1 %}</div>{% endif %}
+      {% endfor %}
+    </div>
+  </section>
+  {% empty %}
+  <section class="card empty"><strong>Este día aún no tiene ejercicios</strong></section>
+  {% endfor %}
+
+  <form id="form-guardar" class="card save-card" method="post" action="{% url 'apptrainer:dia_guardar' dia.pk %}" data-save-form>
+    {% csrf_token %}
+    <input type="hidden" name="fecha" value="{{ fecha|date:'Y-m-d' }}">
+    <p>Los ✓ se guardan al tocarlos. Los pesos se guardan con este botón.</p>
+    <button class="btn btn-block" type="submit"><svg class="icon"><use href="#i-check"/></svg>Guardar todo y ver resumen</button>
+  </form>
+</div>
+{% endblock %}

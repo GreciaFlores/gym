@@ -1,0 +1,14 @@
+{% extends 'apptrainer/base.html' %}
+{% block title %}Sin conexión · AppTrainer{% endblock %}
+{% block body %}
+<main class="login">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="brand-mark"><svg class="icon"><use href="#i-dumbbell"/></svg></div>
+      <h1>Sin conexión</h1>
+      <p>No hay internet en este momento. Tus datos están a salvo: vuelve a intentarlo cuando tengas señal.</p>
+    </div>
+    <button class="btn btn-block" onclick="location.reload()">Reintentar</button>
+  </div>
+</main>
+{% endblock %}

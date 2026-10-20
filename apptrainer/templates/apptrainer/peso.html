@@ -1,0 +1,78 @@
+{% extends 'apptrainer/base.html' %}
+{% block title %}Peso · AppTrainer{% endblock %}
+{% block content %}
+<h1 class="page-title">Mi peso</h1>
+<p class="page-sub">Pésate cada semana, el mismo día y a la misma hora.</p>
+
+<div class="stack">
+  <form class="card" method="post" novalidate>
+    {% csrf_token %}
+    <h2 class="card-title">Registrar peso</h2>
+    <div class="form-row">
+      <div class="field">
+        <label for="{{ form.fecha.id_for_label }}">Fecha</label>
+        {{ form.fecha }}
+        {{ form.fecha.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ form.kg.id_for_label }}">Peso (kg)</label>
+        {{ form.kg }}
+        {{ form.kg.errors }}
+      </div>
+    </div>
+    <div class="field">
+      <label for="{{ form.nota.id_for_label }}">Nota</label>
+      {{ form.nota }}
+      {{ form.nota.errors }}
+    </div>
+    <div class="form-actions"><button class="btn btn-block" type="submit"><svg class="icon"><use href="#i-plus"/></svg>Guardar</button></div>
+  </form>
+
+  {% if resumen %}
+  <div class="tiles">
+    <div class="tile tile-lila"><div class="label">Actual</div><div class="value">{{ resumen.actual|floatformat:1 }} kg</div></div>
+    <div class="tile tile-lemon">
+      <div class="label">Cambio total</div>
+      <div class="value">{% if resumen.cambio_total is not None %}{% if resumen.cambio_total > 0 %}+{% endif %}{{ resumen.cambio_total|floatformat:1 }} kg{% else %}—{% endif %}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <section class="card">
+    <h2 class="card-title">Evolución</h2>
+    {% if grafica|length >= 2 %}
+      <div class="chart-wrap"><svg id="grafica" role="img" aria-label="Gráfica de la evolución de tu peso"></svg><div class="chart-tip"></div></div>
+      <div class="legend"><span><i style="background:#7c5cd6"></i>Peso</span><span><i style="background:#f58fb5"></i>Media de 4 registros</span></div>
+      {{ grafica|json_script:"datos-peso" }}
+    {% else %}
+      <div class="empty"><strong>Falta poco para ver tu gráfica</strong>Con 2 registros ya aparece tu evolución.</div>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">
+      Historial
+      {% if serie %}<a class="btn btn-soft" style="padding:8px 14px;font-size:.875rem" href="{% url 'apptrainer:peso_excel' %}"><svg class="icon"><use href="#i-download"/></svg>Excel</a>{% endif %}
+    </h2>
+    {% if serie %}
+    <ul class="history">
+      {% for f in serie %}
+      <li>
+        <div class="h-date"><b>{{ f.fecha|date:"j \d\e F, Y" }}</b>{% if f.nota %}<small>{{ f.nota }}</small>{% endif %}</div>
+        {% if f.variacion is not None %}
+          <span class="delta {% if f.variacion > 0 %}delta-up{% elif f.variacion < 0 %}delta-down{% else %}delta-eq{% endif %}">{% if f.variacion > 0 %}+{% endif %}{{ f.variacion|floatformat:1 }}</span>
+        {% endif %}
+        <span class="h-kg">{{ f.kg|floatformat:1 }}</span>
+        <form method="post" action="{% url 'apptrainer:peso_eliminar' f.id %}" onsubmit="return confirm('¿Eliminar este registro?')">
+          {% csrf_token %}
+          <button class="icon-btn" type="submit" aria-label="Eliminar registro del {{ f.fecha|date:'j/n/Y' }}"><svg class="icon"><use href="#i-trash"/></svg></button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <div class="empty"><strong>Aún no hay registros</strong>Guarda tu primer peso arriba.</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

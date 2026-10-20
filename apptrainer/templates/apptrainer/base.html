@@ -1,0 +1,54 @@
+{% load static %}<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{% block title %}AppTrainer{% endblock %}</title>
+  <meta name="theme-color" content="#7c5cd6">
+  <meta name="description" content="Tu rutina semanal y tu registro de peso, en un solo lugar.">
+  <link rel="manifest" href="{% url 'apptrainer:manifest' %}">
+  <link rel="icon" type="image/png" href="{% static 'apptrainer/icon-192.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'apptrainer/icon-192.png' %}">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="AppTrainer">
+  <link rel="stylesheet" href="{% static 'apptrainer/app.css' %}">
+</head>
+<body>
+  {% include 'apptrainer/_icons.html' %}
+  {% block body %}
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="{% url 'apptrainer:hoy' %}">
+        <span class="brand-mark"><svg class="icon"><use href="#i-dumbbell"/></svg></span>AppTrainer
+      </a>
+      <form class="logout" method="post" action="{% url 'apptrainer:logout' %}">
+        {% csrf_token %}
+        <button class="chip-btn" type="submit"><svg class="icon"><use href="#i-logout"/></svg>Salir</button>
+      </form>
+    </header>
+
+    {% if messages %}
+      <ul class="messages" role="status">
+        {% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+
+    <main>{% block content %}{% endblock %}</main>
+  </div>
+
+  <nav class="tabbar" aria-label="Principal">
+    <a class="tab" href="{% url 'apptrainer:hoy' %}" {% if seccion == 'hoy' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-hoy"/></svg>Hoy</a>
+    <a class="tab" href="{% url 'apptrainer:semana' %}" {% if seccion == 'semana' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-semana"/></svg>Semana</a>
+  </nav>
+  {% endblock %}
+
+  <script src="{% static 'apptrainer/app.js' %}" defer></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register("{% url 'apptrainer:sw' %}").catch(function () {});
+      });
+    }
+  </script>
+</body>
+</html>

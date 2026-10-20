@@ -1,0 +1,125 @@
+{% extends 'apptrainer/base.html' %}
+{% load apptrainer_extras %}
+{% block title %}Hoy · AppTrainer{% endblock %}
+{% block content %}
+<h1 class="page-title">Hola, {{ user.first_name|default:user.username }} 👋</h1>
+<p class="page-sub">{{ fecha|date:"l j \d\e F" }}</p>
+
+<div class="stack">
+{% if not rutina %}
+  <section class="card empty">
+    <strong>Aún no tienes una rutina</strong>
+    Cuando tu entrenador (o tú) cargue tu plan semanal, aparecerá aquí.
+  </section>
+{% else %}
+  {% if dia %}
+    <section class="card hero">
+      <p class="eyebrow">Hoy toca</p>
+      <h2>{{ dia.titulo }}</h2>
+      <p>{{ dia.enfoque }}</p>
+      <div class="hero-row">
+        <a class="btn btn-light" href="{% url 'apptrainer:dia' dia.pk %}">
+          {% if n_hechos == total and total %}Ver sesión{% elif n_hechos %}Continuar{% else %}Empezar{% endif %}
+          <svg class="icon"><use href="#i-chev"/></svg>
+        </a>
+        <div class="ring" style="--p: {{ porcentaje }}" role="img" aria-label="{{ porcentaje }}% completado"><span>{{ n_hechos }}/{{ total }}</span></div>
+      </div>
+    </section>
+  {% else %}
+    <section class="card hero">
+      <p class="eyebrow">Hoy</p>
+      <h2>Día de descanso</h2>
+      {% if proximo %}
+        <p>Lo próximo: <b>{{ proximo.titulo }}</b>{% if proximo.enfoque %} · {{ proximo.enfoque }}{% endif %}, el {{ fecha_proximo|date:"l" }}.</p>
+      {% else %}
+        <p>Asigna un día de la semana a cada día de tu rutina para ver qué toca hoy.</p>
+      {% endif %}
+      <div class="hero-row"><a class="btn btn-light" href="{% url 'apptrainer:semana' %}">Ver mi semana <svg class="icon"><use href="#i-chev"/></svg></a></div>
+    </section>
+  {% endif %}
+
+  <section class="card cierre">
+    <input class="vista-radio" type="radio" name="vista" id="vista-total" checked>
+    <input class="vista-radio" type="radio" name="vista" id="vista-detalle">
+    <div class="card-title">
+      <span>Cierre semanal</span>
+      <span class="vista-toggle" role="group" aria-label="Cómo ver el peso">
+        <label for="vista-total">Total</label>
+        <label for="vista-detalle">Detalle</label>
+      </span>
+    </div>
+    <p class="muted cierre-fechas">
+      Semana pasada ({{ cierre.anterior.0|date:"j M" }} – {{ cierre.anterior.1|date:"j M" }}) frente a esta semana ({{ cierre.actual.0|date:"j M" }} – {{ cierre.actual.1|date:"j M" }}).
+    </p>
+
+    <div class="tiles">
+      <div class="tile tile-lila">
+        <div class="label">Semana pasada</div>
+        <div class="value">{{ cierre.carga_anterior|kg }} kg</div>
+        <div class="hint">carga total</div>
+      </div>
+      <div class="tile tile-mint">
+        <div class="label">Esta semana</div>
+        <div class="value">{{ cierre.carga_actual|kg }} kg</div>
+        <div class="hint">{{ hechas }}/{{ total_dias }} días completados</div>
+      </div>
+    </div>
+
+    {% if not cierre.hay_anterior %}
+      <p class="muted cierre-vacio">Todavía no hay registro de la semana pasada. Cuando lo haya, verás aquí cómo vas frente a ella.</p>
+    {% endif %}
+
+    <div class="cierre-lista">
+      {% for f in cierre.dias %}
+      <article class="cd">
+        <header class="cd-head">
+          <span class="day-num">{{ f.dia.orden }}</span>
+          <div class="cd-title"><h3>{{ f.dia.titulo }}</h3><p>{{ f.dia.enfoque }}</p></div>
+          {% if f.delta is not None %}
+            <span class="delta {% if f.delta > 0 %}delta-mas{% elif f.delta < 0 %}delta-menos{% else %}delta-igual{% endif %}">{% if f.delta > 0 %}▲{% elif f.delta < 0 %}▼{% else %}={% endif %} {{ f.delta|signo }} kg</span>
+          {% endif %}
+        </header>
+        <div class="cd-cols">
+          <div class="cd-col">
+            <span class="cd-label">Semana pasada</span>
+            {% if f.anterior %}
+              <b>{{ f.anterior.carga|kg }} kg</b>
+              <small>{{ f.anterior.hechos }}/{{ f.anterior.total }} ejercicios · {{ f.anterior.fecha|date:"j/n" }}</small>
+            {% else %}<span class="muted">Sin registro</span>{% endif %}
+          </div>
+          <div class="cd-col cd-actual">
+            <span class="cd-label">Esta semana</span>
+            {% if f.actual %}
+              <b>{{ f.actual.carga|kg }} kg</b>
+              <small>{{ f.actual.hechos }}/{{ f.actual.total }} ejercicios · {{ f.actual.fecha|date:"j/n" }}</small>
+            {% else %}<span class="muted">Aún sin cargar</span>{% endif %}
+          </div>
+        </div>
+        {% if f.ejercicios %}
+        <details class="cd-ejercicios">
+          <summary>Ver ejercicios ({{ f.ejercicios|length }})</summary>
+          <ul>
+            {% for x in f.ejercicios %}
+            <li>
+              <span class="cd-ej-nombre">{{ x.ejercicio.nombre }}</span>
+              <span class="cd-ej-vals">
+                <span class="cd-v cd-v-ant">
+                  {% if x.anterior %}<span class="v-total">{{ x.anterior.kg|kg }} kg</span><span class="v-detalle">{{ x.anterior.detalle }}</span>{% else %}<span class="muted">—</span>{% endif %}
+                </span>
+                <span class="cd-flecha" aria-hidden="true">→</span>
+                <span class="cd-v">
+                  {% if x.actual %}<span class="v-total">{{ x.actual.kg|kg }} kg</span><span class="v-detalle">{{ x.actual.detalle }}</span>{% else %}<span class="muted">—</span>{% endif %}
+                </span>
+              </span>
+            </li>
+            {% endfor %}
+          </ul>
+        </details>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+</div>
+{% endblock %}

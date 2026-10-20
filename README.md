@@ -1,3 +1,32 @@
+# AppTrainer · Rutina y peso
+
+App web (instalable en el celular) para guardar la **rutina semanal** y llevar el **registro de peso**. Vive en este mismo proyecto, en `/app/`, junto al módulo de reservas de abajo.
+
+- **Hoy:** qué día toca, progreso y resumen de la semana.
+- **Semana:** los días de la rutina con su estado (pendiente / en curso / completado).
+- **Hoy:** el día que toca y el **cierre semanal**: semana pasada frente a la semana en curso, día por día, con la carga total y la diferencia. Se puede ver el **total** o el **detalle** (barra + discos, mancuernas).
+- **Día:** movilidad, zona media y trabajo principal, con checks, ejercicios combinados, material, videos, una **ilustración** y las **indicaciones del entrenador** tal cual las escribió. Se elige la **fecha** de la sesión y el **peso levantado** de cada ejercicio (menos movilidad) como **barra + discos**, **mancuernas** (× 2) o **total**. Un botón guarda todo y muestra el **resumen**.
+- **Excel:** desde "Mi semana" se elige el rango de fechas (o la semana pasada, o todo el historial) y se descarga el registro con el detalle de cada carga.
+- El peso corporal (`/app/peso/`) sigue en el código pero ya no aparece en el menú.
+- **Peso:** registro semanal, gráfica con media móvil, historial y **descarga en Excel**.
+- Login con usuario y contraseña. Cada usuario ve **solo sus datos** (listo para que un entrenador sume alumnos).
+- Panel `/admin/` para editar rutinas, días, bloques y ejercicios.
+
+```bash
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py seed_rutina --usuario TU_USUARIO   # carga la rutina de 3 días (no pisa un historial existente; --forzar lo borra)
+python manage.py runserver                           # http://127.0.0.1:8000/app/
+```
+
+Publicación en producción: [docs/publicar-en-render.md](docs/publicar-en-render.md) (`render.yaml` incluido).
+
+Las ilustraciones de los ejercicios se generan con `python scripts/generar_ilustraciones.py` (SVG en `apptrainer/static/apptrainer/ejercicios/`); la imagen y el tipo de carga de cada ejercicio están en `apptrainer/catalogo.py`.
+
+> **Para evolucionar:** `Ejercicio.prescripcion` es texto libre (`3x10`, `3xfallo`) y el peso se anota una vez por ejercicio. La próxima fase puede registrar kg y reps por serie.
+
+---
+
 # Gym · Reservas de clases (MVP)
 
 Landing para que los alumnos de un entrenador personal vean las clases de la semana, se identifiquen con su DNI y reserven. El entrenador gestiona todo desde el Django Admin.

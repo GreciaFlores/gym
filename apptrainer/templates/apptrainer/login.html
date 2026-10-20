@@ -1,0 +1,29 @@
+{% extends 'apptrainer/base.html' %}
+{% block title %}Entrar · AppTrainer{% endblock %}
+{% block body %}
+<main class="login">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="brand-mark"><svg class="icon"><use href="#i-dumbbell"/></svg></div>
+      <h1>AppTrainer</h1>
+      <p>Tu rutina y tu progreso, siempre a mano.</p>
+    </div>
+    <form class="card" method="post" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+        <ul class="errorlist" role="alert">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+      {% endif %}
+      <div class="field">
+        <label for="{{ form.username.id_for_label }}">Usuario</label>
+        <input type="text" name="username" id="{{ form.username.id_for_label }}" autocomplete="username" autocapitalize="none" autofocus required>
+      </div>
+      <div class="field">
+        <label for="{{ form.password.id_for_label }}">Contraseña</label>
+        <input type="password" name="password" id="{{ form.password.id_for_label }}" autocomplete="current-password" required>
+      </div>
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="form-actions"><button class="btn btn-block" type="submit">Entrar</button></div>
+    </form>
+  </div>
+</main>
+{% endblock %}
