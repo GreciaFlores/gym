@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -132,3 +133,11 @@ TRAINER_BIO = os.environ.get(
 PRECIO_CLASE_DEFAULT = 14000
 DURACION_CLASE_DEFAULT = 60
 CUPO_DEFAULT = 5
+
+# Secreto para firmar el código de check-in de cada clase.
+# Solo en desarrollo (DEBUG=True) hay un valor por defecto; en producción es obligatorio.
+CHECKIN_SECRET = os.environ.get('CHECKIN_SECRET')
+if not CHECKIN_SECRET:
+    if not DEBUG:
+        raise ImproperlyConfigured('Definí la variable de entorno CHECKIN_SECRET.')
+    CHECKIN_SECRET = 'dev-insecure-checkin-secret-cambiar-en-produccion'

@@ -1,17 +1,29 @@
 """Reglas de negocio. Las vistas y el admin solo llaman a estas funciones."""
 from decimal import Decimal
+from typing import NamedTuple
 
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from .models import Alumno, Clase, Movimiento, Reserva
 
 MSG_SIN_SALDO = 'Sin clases disponibles, coordiná el pago con tu entrenador'
+MSG_YA_CHECKIN = 'Ya registraste tu asistencia en esta clase.'
 
 
 class ReservaError(Exception):
     """Error de negocio con mensaje apto para mostrar al alumno."""
+
+
+class CheckinError(ReservaError):
+    """Error de negocio del check-in."""
+
+
+class CheckinResultado(NamedTuple):
+    movimiento: Movimiento
+    saldo: int
+    reservas_sin_saldo: bool  # hay más reservas futuras confirmadas que clases de saldo
 
 
 def registrar_pago(alumno, monto, precio_clase=None, nota=''):
@@ -70,6 +82,37 @@ def cancelar(alumno, clase):
     reserva.estado = Reserva.CANCELADA
     reserva.save(update_fields=['estado'])
     return reserva
+
+
+@transaction.atomic
+def registrar_checkin(alumno, clase, origen='qr'):
+    """Descuenta 1 clase por asistencia. Lo único que consume saldo es el check-in:
+    una reserva sin check-in no descuenta nada. Devuelve CheckinResultado."""
+    # Bloquea al alumno para serializar check-ins simultáneos.
+    alumno = Alumno.objects.select_for_update().get(pk=alumno.pk)
+    clase = Clase.objects.get(pk=clase.pk)
+    if not alumno.activo:
+        raise CheckinError('Tu cuenta está inactiva, hablá con tu entrenador.')
+    if clase.estado == Clase.CANCELADA:
+        raise CheckinError('La clase fue cancelada.')
+    consumos = Movimiento.objects.filter(alumno=alumno, clase=clase, tipo=Movimiento.CONSUMO)
+    if consumos.exists():
+        raise CheckinError(MSG_YA_CHECKIN)
+    if alumno.saldo < 1:
+        raise CheckinError(MSG_SIN_SALDO)
+    try:
+        with transaction.atomic():  # savepoint: la restricción única es la red de seguridad
+            movimiento = Movimiento.objects.create(
+                alumno=alumno, clase=clase, tipo=Movimiento.CONSUMO, clases=-1,
+                nota=f'check-in {origen}',
+            )
+    except IntegrityError:
+        raise CheckinError(MSG_YA_CHECKIN)
+    Reserva.objects.filter(
+        alumno=alumno, clase=clase, estado=Reserva.CONFIRMADA
+    ).update(estado=Reserva.ASISTIDA)
+    saldo = alumno.saldo
+    return CheckinResultado(movimiento, saldo, alumno.reservas_futuras().count() > saldo)
 
 
 def crear_clases_recurrentes(dias, horas, semanas, desde=None, cupo=None, precio=None, duracion=None):

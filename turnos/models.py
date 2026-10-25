@@ -113,7 +113,8 @@ class Clase(models.Model):
 class Reserva(models.Model):
     CONFIRMADA = 'confirmada'
     CANCELADA = 'cancelada'
-    ESTADOS = [(CONFIRMADA, 'Confirmada'), (CANCELADA, 'Cancelada')]
+    ASISTIDA = 'asistida'
+    ESTADOS = [(CONFIRMADA, 'Confirmada'), (CANCELADA, 'Cancelada'), (ASISTIDA, 'Asistida')]
 
     alumno = models.ForeignKey(Alumno, on_delete=models.CASCADE, related_name='reservas')
     clase = models.ForeignKey(Clase, on_delete=models.CASCADE, related_name='reservas')
@@ -141,11 +142,21 @@ class Movimiento(models.Model):
     tipo = models.CharField(max_length=10, choices=TIPOS)
     monto = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     precio_clase = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    clase = models.ForeignKey(
+        Clase, null=True, blank=True, on_delete=models.PROTECT, related_name='movimientos'
+    )
     clases = models.IntegerField(help_text='Positivo suma clases, negativo resta.')
     nota = models.CharField(max_length=255, blank=True)
 
     class Meta:
         ordering = ['-fecha', '-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['alumno', 'clase'],
+                condition=models.Q(tipo='consumo'),
+                name='consumo_unico_por_alumno_clase',
+            )
+        ]
 
     def __str__(self):
         return f'{self.alumno} {self.tipo} {self.clases:+d}'
