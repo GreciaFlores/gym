@@ -35,9 +35,12 @@ class Command(BaseCommand):
             alumnos[dni] = a
             if nuevo and pago:
                 services.registrar_pago(a, pago, 14000)
-        if not Movimiento.objects.filter(nota__contains='ajuste demo').exists():
-            Movimiento.objects.create(alumno=alumnos['31222333'], tipo=Movimiento.CONSUMO,
-                                      clases=-1, nota='Clase tomada (ajuste demo)')
+        # Los escenarios (cupos, reservas, clase cancelada) se arman una sola vez; el movimiento
+        # "ajuste demo" es la marca. Así correrlo en cada deploy no cancela otras clases ni pisa
+        # lo que se haya probado. Las clases nuevas y los alumnos faltantes sí se completan siempre.
+        if Movimiento.objects.filter(nota__contains='ajuste demo').exists():
+            self.stdout.write('Datos de ejemplo ya cargados: no se repiten los escenarios.')
+            return
 
         futuras = list(Clase.objects.filter(estado=Clase.ABIERTA).order_by('fecha', 'hora_inicio'))
         futuras = [c for c in futuras if not c.ya_paso]
@@ -68,6 +71,8 @@ class Command(BaseCommand):
         Reserva.objects.get_or_create(alumno=alumnos['32333444'], clase=futuras[2],
                                       defaults={'estado': Reserva.CANCELADA})
 
+        Movimiento.objects.create(alumno=alumnos['31222333'], tipo=Movimiento.CONSUMO,
+                                  clases=-1, nota='Clase tomada (ajuste demo)')
         self.stdout.write(self.style.SUCCESS(
             f'Listo: {Clase.objects.count()} clases, {Alumno.objects.count()} alumnos.'))
         self.stdout.write('DNIs de prueba: 30111222 (7 clases), 31222333 (3), 32333444 (1), '

@@ -100,3 +100,12 @@ def test_csrf_trusted_origins_desde_variable():
                    's.CSRF_TRUSTED_ORIGINS')
     assert out == "['https://a.com', 'https://b.com']"
     assert _setting({'DJANGO_CSRF_TRUSTED_ORIGINS': ''}, 's.CSRF_TRUSTED_ORIGINS') == '[]'
+
+
+def test_render_external_hostname_se_suma_a_hosts_y_csrf():
+    env = {'RENDER_EXTERNAL_HOSTNAME': 'apptrainer-staging.onrender.com',
+           'DJANGO_ALLOWED_HOSTS': 'localhost', 'DJANGO_CSRF_TRUSTED_ORIGINS': 'https://otro.com'}
+    assert _setting(env, 's.ALLOWED_HOSTS') == "['localhost', 'apptrainer-staging.onrender.com']"
+    assert _setting(env, 's.CSRF_TRUSTED_ORIGINS') == \
+        "['https://otro.com', 'https://apptrainer-staging.onrender.com']"
+    assert _setting({'RENDER_EXTERNAL_HOSTNAME': ''}, 's.CSRF_TRUSTED_ORIGINS') == '[]'

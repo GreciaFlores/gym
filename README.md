@@ -68,6 +68,17 @@ DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,192.168.1.20 python manage.py runserver
 
 Abrí `http://192.168.1.20:8000/admin/turnos/clase/hoy/` (la URL del QR usa el host con el que entraste: entrá por la IP, no por `localhost`). El celular debe estar en el mismo WiFi y el firewall debe permitir el puerto 8000. Para probar necesitás una clase de hoy con la ventana abierta (30 min antes del inicio hasta el fin).
 
+## Deploy staging en Render
+
+El staging se despliega con un Blueprint propio: **`render.staging.yaml`**. No se llama `render.yaml` a propósito: Render toma `render.yaml` como el Blueprint por defecto del repo, que es el de producción (`apptrainer` + `apptrainer-db`). Con otro nombre, el staging no lo pisa ni lo modifica, y todos sus recursos tienen nombres distintos (`apptrainer-staging`, `apptrainer-staging-db`).
+
+1. En Render: **New → Blueprint**, elegí este repo y en *Blueprint file path* escribí `render.staging.yaml`. Sigue la branch `feature/checkin-qr`.
+2. Completá las variables que pide (`sync: false`): `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_PASSWORD`, `DJANGO_SUPERUSER_EMAIL` (opcional) y `TRAINER_NAME`. `DJANGO_SECRET_KEY` y `CHECKIN_SECRET` se generan solas.
+3. Cada deploy corre `build.sh`: instala dependencias, `collectstatic`, `migrate`, `ensure_superuser` (crea el usuario solo si no existe y no le cambia la clave) y, si `SEED_DEMO=True`, `seed_demo` (idempotente: no duplica datos ni vuelve a armar los escenarios).
+4. Render inyecta `RENDER_EXTERNAL_HOSTNAME`: se agrega solo a `ALLOWED_HOSTS` y a `CSRF_TRUSTED_ORIGINS` (`https://<host>`). `DJANGO_BEHIND_PROXY=True` hace que el QR salga con `https://`.
+
+Notas: el plan gratuito duerme el servicio tras un rato sin tráfico (el primer request tarda) y la base gratuita de Render vence a los 30 días. Los estáticos los sirve WhiteNoise. Con 2 workers de gunicorn el límite de intentos del check-in es por proceso (ver arriba).
+
 ## Tests
 
 ```bash
