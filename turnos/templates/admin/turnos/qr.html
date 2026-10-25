@@ -1,0 +1,26 @@
+{% extends "admin/base_site.html" %}
+{% block extrahead %}{{ block.super }}<meta http-equiv="refresh" content="15">
+<style>
+  .qr-box { max-width: 520px; margin: 0 auto; text-align: center; }
+  .qr-box svg { width: 100%; height: auto; background: #fff; }
+  .qr-codigo { font-size: 4rem; font-weight: 700; letter-spacing: .3em; margin: 12px 0; font-family: monospace; }
+  .qr-url { font-size: .75rem; word-break: break-all; color: #666; }
+</style>{% endblock %}
+{% block content %}
+<div class="qr-box">
+  <h2 style="font-size:1.5rem">{{ clase.fecha|date:"l d/m" }} · {{ clase.hora_inicio|time:"H:i" }}</h2>
+  <p>Check-in habilitado de {{ desde|time:"H:i" }} a {{ hasta|time:"H:i" }}</p>
+  {{ qr_svg }}
+  <p>Si no podés escanear, entrá a <strong>/checkin/</strong> y escribí:</p>
+  <div class="qr-codigo">{{ codigo }}</div>
+  <p class="qr-url">{{ url }}</p>
+
+  <h3 style="margin-top:24px">Ya hicieron check-in ({{ consumos|length }})</h3>
+  {% for m in consumos %}
+  <p>{{ m.fecha|date:"H:i" }} · {{ m.alumno.nombre }} {{ m.alumno.apellido }}</p>
+  {% empty %}
+  <p>Todavía nadie.</p>
+  {% endfor %}
+  <p style="margin-top:16px"><a href="{% url 'admin:turnos_clase_hoy' %}">← Clases de hoy</a> · se actualiza cada 15 s</p>
+</div>
+{% endblock %}

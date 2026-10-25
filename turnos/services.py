@@ -17,7 +17,11 @@ class ReservaError(Exception):
 
 
 class CheckinError(ReservaError):
-    """Error de negocio del check-in."""
+    """Error de negocio del check-in. `sin_saldo` permite a la vista ofrecer la pantalla de saldo."""
+
+    def __init__(self, mensaje, sin_saldo=False):
+        super().__init__(mensaje)
+        self.sin_saldo = sin_saldo
 
 
 class CheckinResultado(NamedTuple):
@@ -57,7 +61,7 @@ def reservar(alumno, clase):
     if clase.ya_paso:
         raise ReservaError('La clase ya pasó.')
     existente = Reserva.objects.filter(alumno=alumno, clase=clase).first()
-    if existente and existente.estado == Reserva.CONFIRMADA:
+    if existente and existente.estado in (Reserva.CONFIRMADA, Reserva.ASISTIDA):
         raise ReservaError('Ya tenés un lugar en esta clase.')
     if clase.lugares_libres <= 0:
         raise ReservaError('La clase está completa.')
@@ -99,7 +103,7 @@ def registrar_checkin(alumno, clase, origen='qr'):
     if consumos.exists():
         raise CheckinError(MSG_YA_CHECKIN)
     if alumno.saldo < 1:
-        raise CheckinError(MSG_SIN_SALDO)
+        raise CheckinError(MSG_SIN_SALDO, sin_saldo=True)
     try:
         with transaction.atomic():  # savepoint: la restricción única es la red de seguridad
             movimiento = Movimiento.objects.create(

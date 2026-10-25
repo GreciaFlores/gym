@@ -4,6 +4,7 @@ import hashlib
 import hmac
 
 from django.conf import settings
+from django.core.cache import cache
 from django.utils import timezone
 
 # 32 símbolos sin ambiguos (sin 0/O/1/I). 256 es múltiplo de 32: el mapeo es uniforme.
@@ -34,3 +35,31 @@ def codigo_valido(clase, code, ahora):
     desde, hasta = ventana_checkin(clase)
     ahora = timezone.localtime(ahora)  # zona horaria del proyecto (Argentina)
     return coincide and desde <= ahora <= hasta
+
+
+# --- Límite de intentos inválidos ---
+# Por sesión y, si hay alumno identificado, por alumno. No se limita por IP: en el gimnasio
+# todos comparten la IP pública y un par de errores bloquearía a toda la clase.
+
+def _claves_intentos(request, alumno=None):
+    if not request.session.session_key:
+        request.session.create()
+    claves = [f'checkin:intentos:sesion:{request.session.session_key}']
+    if alumno is not None:
+        claves.append(f'checkin:intentos:alumno:{alumno.pk}')
+    return claves
+
+
+def intentos_bloqueados(request, alumno=None):
+    return any(
+        cache.get(k, 0) >= settings.CHECKIN_MAX_INTENTOS for k in _claves_intentos(request, alumno)
+    )
+
+
+def registrar_intento_fallido(request, alumno=None):
+    for clave in _claves_intentos(request, alumno):
+        if not cache.add(clave, 1, settings.CHECKIN_BLOQUEO_SEG):
+            try:
+                cache.incr(clave)
+            except ValueError:  # venció entre add e incr
+                cache.set(clave, 1, settings.CHECKIN_BLOQUEO_SEG)

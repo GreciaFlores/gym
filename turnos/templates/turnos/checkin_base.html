@@ -1,0 +1,13 @@
+{% extends "turnos/base.html" %}
+{% block title %}Check-in · {{ trainer_name }}{% endblock %}
+{% block content %}
+<div class="max-w-md mx-auto">
+  <p class="text-sm text-slate-500 mb-3">{{ trainer_name }}</p>
+  {% for m in messages %}
+  <div class="mb-3 rounded-lg px-4 py-3 text-sm {% if m.tags == 'error' %}bg-red-100 text-red-800{% else %}bg-emerald-100 text-emerald-800{% endif %}" role="alert">{{ m }}</div>
+  {% endfor %}
+  <div class="bg-white rounded-xl shadow p-6">
+    {% block checkin %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

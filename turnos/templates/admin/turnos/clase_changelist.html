@@ -1,5 +1,6 @@
 {% extends "admin/change_list.html" %}
 {% block object-tools-items %}
+<li><a href="{% url 'admin:turnos_clase_hoy' %}">Clases de hoy</a></li>
 <li><a href="{% url 'admin:turnos_clase_recurrentes' %}" class="addlink">Crear clases recurrentes</a></li>
 {{ block.super }}
 {% endblock %}

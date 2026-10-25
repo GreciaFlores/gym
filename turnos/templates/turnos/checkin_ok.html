@@ -1,0 +1,13 @@
+{% extends "turnos/checkin_base.html" %}
+{% block checkin %}
+<div class="text-center">
+  <p class="text-5xl mb-2">✅</p>
+  <h1 class="text-xl font-bold">¡Check-in registrado, {{ alumno.nombre }}!</h1>
+  <p class="text-slate-600">Clase de las {{ clase.hora_inicio|time:"H:i" }}</p>
+  <p class="text-3xl font-extrabold text-emerald-700 my-5">Te quedan {{ saldo }} clase{{ saldo|pluralize }}</p>
+  {% if reservas_sin_saldo %}
+  <p class="rounded-lg bg-amber-100 text-amber-800 px-4 py-3 text-sm">Tenés reservas sin saldo, renová con el entrenador</p>
+  {% endif %}
+  <a href="{% url 'index' %}" class="block mt-5 text-sm text-slate-500 underline">Ver calendario</a>
+</div>
+{% endblock %}

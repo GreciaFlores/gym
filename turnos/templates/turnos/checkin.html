@@ -1,0 +1,12 @@
+{% extends "turnos/checkin_base.html" %}
+{% block checkin %}
+<h1 class="text-xl font-bold mb-1">Hola, {{ alumno.nombre }}</h1>
+<p class="text-slate-600 mb-4">Clase del <strong>{{ clase.fecha|date:"d/m" }}</strong> a las <strong>{{ clase.hora_inicio|time:"H:i" }}</strong>.</p>
+<form method="post" action="{% url 'checkin' clase.pk %}">
+  {% csrf_token %}<input type="hidden" name="code" value="{{ code }}">
+  <button class="w-full bg-emerald-600 text-white rounded-xl py-5 text-xl font-bold">Confirmar check-in</button>
+</form>
+<p class="text-xs text-slate-500 mt-3 text-center">Se descuenta 1 clase de tu saldo ({{ alumno.saldo }} disponible{{ alumno.saldo|pluralize }}).</p>
+<form method="post" action="{% url 'salir' %}" class="text-center mt-4">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <button class="text-sm text-slate-500 underline">No soy {{ alumno.nombre }}</button></form>
+{% endblock %}

@@ -134,6 +134,14 @@ PRECIO_CLASE_DEFAULT = 14000
 DURACION_CLASE_DEFAULT = 60
 CUPO_DEFAULT = 5
 
+# Detrás de un proxy TLS (Render): confía en X-Forwarded-Proto para saber que la request es https.
+# Sin esto, las URLs absolutas salen con http:// y los POST pueden fallar por CSRF.
+if os.environ.get('DJANGO_BEHIND_PROXY', '').lower() in ('1', 'true', 'yes'):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+CSRF_TRUSTED_ORIGINS = [
+    o.strip() for o in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()
+]
+
 # Secreto para firmar el código de check-in de cada clase.
 # Solo en desarrollo (DEBUG=True) hay un valor por defecto; en producción es obligatorio.
 CHECKIN_SECRET = os.environ.get('CHECKIN_SECRET')
@@ -141,3 +149,8 @@ if not CHECKIN_SECRET:
     if not DEBUG:
         raise ImproperlyConfigured('Definí la variable de entorno CHECKIN_SECRET.')
     CHECKIN_SECRET = 'dev-insecure-checkin-secret-cambiar-en-produccion'
+
+# Límite de códigos de check-in inválidos por sesión y por alumno (cache de Django,
+# por proceso: con varios workers el límite efectivo es mayor).
+CHECKIN_MAX_INTENTOS = 5
+CHECKIN_BLOQUEO_SEG = 600

@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from . import services
@@ -38,7 +39,20 @@ def _semana_param(request):
         return _lunes(timezone.localdate())
 
 
+def next_seguro(request):
+    """`next` del POST si apunta a este mismo host; si no, None (sin open redirect)."""
+    destino = request.POST.get('next') or ''
+    if destino and url_has_allowed_host_and_scheme(
+        destino, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return destino
+    return None
+
+
 def _volver(request):
+    destino = next_seguro(request)
+    if destino:
+        return redirect(destino)
     semana = request.POST.get('semana')
     url = '/'
     if semana:
@@ -56,15 +70,21 @@ def index(request):
 
     clases = list(
         Clase.objects.filter(fecha__range=(lunes, domingo)).annotate(
-            ocupados=Count('reservas', filter=Q(reservas__estado=Reserva.CONFIRMADA))
+            ocupados=Count(
+                'reservas',
+                filter=Q(reservas__estado__in=[Reserva.CONFIRMADA, Reserva.ASISTIDA]),
+            )
         )
     )
     mias = set()
+    confirmadas = set()
     if alumno:
-        mias = set(
-            alumno.reservas.filter(estado=Reserva.CONFIRMADA, clase__in=clases)
-            .values_list('clase_id', flat=True)
-        )
+        for clase_id, estado in alumno.reservas.filter(
+            estado__in=[Reserva.CONFIRMADA, Reserva.ASISTIDA], clase__in=clases
+        ).values_list('clase_id', 'estado'):
+            mias.add(clase_id)
+            if estado == Reserva.CONFIRMADA:
+                confirmadas.add(clase_id)
     saldo_ok = bool(alumno and alumno.saldo_disponible > 0)
     hoy = timezone.localdate()
     dias = []
@@ -79,7 +99,7 @@ def index(request):
                 'reservada': reservada,
                 'puede_reservar': puede and not reservada,
                 'sin_saldo': puede and not reservada and bool(alumno) and not saldo_ok,
-                'puede_cancelar': reservada and not c.ya_paso,
+                'puede_cancelar': c.pk in confirmadas and not c.ya_paso,
             })
         dias.append({
             'fecha': fecha, 'nombre': DIAS[n], 'es_hoy': fecha == hoy, 'items': items,
@@ -111,6 +131,7 @@ def identificar(request):
     alumno = Alumno.objects.filter(dni=dni).first()
     if alumno is None:
         request.session['dni_pendiente'] = dni
+        request.session['next_pendiente'] = next_seguro(request)  # vuelve al check-in tras registrarse
         return redirect('registro')
     if not alumno.activo:
         messages.error(request, 'Tu cuenta está inactiva, hablá con tu entrenador.')
@@ -128,12 +149,17 @@ def registro(request):
     if request.method == 'POST' and form.is_valid():
         if Alumno.objects.filter(dni=dni).exists():  # carrera: ya lo registraron
             return redirect('index')
+        destino = request.session.pop('next_pendiente', None)
         alumno = form.save(commit=False)
         alumno.dni = dni
         alumno.save()
         request.session.pop('dni_pendiente', None)
         request.session[SESSION_KEY] = alumno.pk
         messages.success(request, f'¡Listo, {alumno.nombre}! Te registraste. Coordiná el pago con tu entrenador para sumar clases.')
+        if destino and url_has_allowed_host_and_scheme(
+            destino, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+        ):
+            return redirect(destino)
         return redirect('index')
     return render(request, 'turnos/registro.html', {
         'form': form, 'dni': dni, 'trainer_name': settings.TRAINER_NAME,

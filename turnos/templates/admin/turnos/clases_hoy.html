@@ -1,0 +1,22 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+{% if filas %}
+<table style="width:100%">
+  <thead><tr><th>Hora</th><th>Reservas</th><th>Check-ins</th><th>Ventana</th><th></th></tr></thead>
+  <tbody>
+  {% for f in filas %}
+  <tr>
+    <td><strong>{{ f.clase.hora_inicio|time:"H:i" }}</strong> ({{ f.clase.duracion_min }} min)</td>
+    <td>{{ f.clase.reservas_n }} / {{ f.clase.cupo_maximo }}</td>
+    <td>{{ f.clase.checkins_n }}</td>
+    <td>{% if f.ventana == 'abierta' %}<strong style="color:#0a7d33">Abierta</strong>{% elif f.ventana == 'antes' %}Todavía no{% else %}Cerrada{% endif %}</td>
+    <td><a class="button" href="{% url 'admin:turnos_clase_qr' f.clase.pk %}">Mostrar QR</a></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No hay clases abiertas hoy.</p>
+{% endif %}
+<p style="margin-top:16px"><a href="{% url 'admin:turnos_clase_changelist' %}">← Todas las clases</a></p>
+{% endblock %}

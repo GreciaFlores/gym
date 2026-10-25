@@ -94,7 +94,8 @@ class Clase(models.Model):
     def lugares_ocupados(self):
         if hasattr(self, 'ocupados'):  # anotado por la vista para evitar N+1
             return self.ocupados
-        return self.reservas.filter(estado=Reserva.CONFIRMADA).count()
+        # La asistida sigue ocupando su lugar: el check-in no libera cupo.
+        return self.reservas.filter(estado__in=[Reserva.CONFIRMADA, Reserva.ASISTIDA]).count()
 
     @property
     def lugares_libres(self):

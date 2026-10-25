@@ -2,12 +2,18 @@ import datetime as dt
 
 from django import forms
 from django.conf import settings
+import segno
 from django.contrib import admin, messages
-from django.shortcuts import redirect, render
+from django.core.exceptions import PermissionDenied
+from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import path, reverse
 from django.utils import timezone
+from django.utils.http import urlencode
+from django.utils.safestring import mark_safe
 
 from . import services
+from .checkin import codigo_checkin, ventana_checkin
 from .models import Alumno, Clase, Movimiento, Reserva
 
 
@@ -118,8 +124,54 @@ class ClaseAdmin(admin.ModelAdmin):
         self.message_user(request, f'{n} clase(s) canceladas. Las reservas quedan sin efecto para el calendario.')
 
     def get_urls(self):
-        return [path('recurrentes/', self.admin_site.admin_view(self.recurrentes),
-                     name='turnos_clase_recurrentes')] + super().get_urls()
+        vista = self.admin_site.admin_view
+        return [
+            path('recurrentes/', vista(self.recurrentes), name='turnos_clase_recurrentes'),
+            path('hoy/', vista(self.clases_hoy), name='turnos_clase_hoy'),
+            path('hoy/<int:pk>/qr/', vista(self.mostrar_qr), name='turnos_clase_qr'),
+        ] + super().get_urls()
+
+    def clases_hoy(self, request):
+        if not self.has_view_permission(request):
+            raise PermissionDenied
+        ahora = timezone.now()
+        clases = Clase.objects.filter(fecha=timezone.localdate(), estado=Clase.ABIERTA).annotate(
+            reservas_n=Count('reservas', filter=Q(
+                reservas__estado__in=[Reserva.CONFIRMADA, Reserva.ASISTIDA]), distinct=True),
+            checkins_n=Count('movimientos', filter=Q(
+                movimientos__tipo=Movimiento.CONSUMO), distinct=True),
+        )
+        filas = []
+        for c in clases:
+            desde, hasta = ventana_checkin(c)
+            ventana = 'antes' if ahora < desde else 'cerrada' if ahora > hasta else 'abierta'
+            filas.append({'clase': c, 'ventana': ventana})
+        return render(request, 'admin/turnos/clases_hoy.html', {
+            **self.admin_site.each_context(request), 'filas': filas,
+            'title': 'Clases de hoy', 'opts': self.model._meta,
+        })
+
+    def mostrar_qr(self, request, pk):
+        if not self.has_view_permission(request):
+            raise PermissionDenied
+        clase = get_object_or_404(Clase, pk=pk)
+        if clase.estado != Clase.ABIERTA or clase.fecha != timezone.localdate():
+            self.message_user(request, 'Solo se muestra el QR de clases abiertas de hoy.',
+                              messages.ERROR)
+            return redirect('admin:turnos_clase_hoy')
+        # URL absoluta: respeta host y esquema (https detrás de proxy con DJANGO_BEHIND_PROXY).
+        url = request.build_absolute_uri(reverse('checkin', args=[clase.pk]))
+        url += '?' + urlencode({'code': codigo_checkin(clase)})
+        qr_svg = mark_safe(segno.make(url, error='m').svg_inline(scale=1, border=2, omitsize=True))
+        desde, hasta = ventana_checkin(clase)
+        return render(request, 'admin/turnos/qr.html', {
+            **self.admin_site.each_context(request), 'clase': clase, 'url': url,
+            'codigo': codigo_checkin(clase), 'qr_svg': qr_svg,
+            'desde': timezone.localtime(desde), 'hasta': timezone.localtime(hasta),
+            'consumos': clase.movimientos.filter(tipo=Movimiento.CONSUMO).select_related('alumno')
+                             .order_by('fecha'),
+            'title': f'QR · {clase}', 'opts': self.model._meta,
+        })
 
     def recurrentes(self, request):
         form = RecurrentesForm(request.POST or None, initial={'desde': timezone.localdate()})

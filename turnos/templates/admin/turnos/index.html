@@ -1,0 +1,5 @@
+{% extends "admin/index.html" %}
+{% block content %}
+<p style="margin:0 0 16px"><a href="{% url 'admin:turnos_clase_hoy' %}" class="button" style="padding:10px 16px;font-size:1rem">Clases de hoy · QR de check-in</a></p>
+{{ block.super }}
+{% endblock %}

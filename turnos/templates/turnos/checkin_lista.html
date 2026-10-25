@@ -1,0 +1,20 @@
+{% extends "turnos/checkin_base.html" %}
+{% block checkin %}
+<h1 class="text-xl font-bold mb-3">Check-in</h1>
+{% if error %}<p class="mb-3 rounded-lg bg-red-100 text-red-800 px-4 py-3 text-sm" role="alert">{{ error }}</p>{% endif %}
+{% if clases %}
+<form method="post" class="space-y-3">
+  {% csrf_token %}
+  <label for="clase" class="block text-sm font-medium">Clase</label>
+  <select id="clase" name="clase" class="w-full rounded-lg border border-slate-300 px-3 py-3 text-base bg-white">
+    {% for c in clases %}<option value="{{ c.pk }}">{{ c.fecha|date:"d/m" }} · {{ c.hora_inicio|time:"H:i" }}</option>{% endfor %}
+  </select>
+  <label for="code" class="block text-sm font-medium">Código de 4 caracteres</label>
+  <input id="code" name="code" maxlength="4" autocomplete="off" autocapitalize="characters" required
+         class="w-full rounded-lg border border-slate-300 px-3 py-4 text-2xl text-center tracking-widest uppercase font-mono">
+  <button class="w-full bg-emerald-600 text-white rounded-xl py-4 text-lg font-semibold">Continuar</button>
+</form>
+{% else %}
+<p class="text-slate-600">No hay clases con el check-in habilitado en este momento (se habilita 30 minutos antes).</p>
+{% endif %}
+{% endblock %}
