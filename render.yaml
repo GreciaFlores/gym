@@ -24,6 +24,8 @@ services:
         value: "False"
       - key: DJANGO_SECRET_KEY
         generateValue: true
+      - key: CHECKIN_SECRET
+        generateValue: true
       - key: DJANGO_TIME_ZONE
         value: America/Argentina/Buenos_Aires   # ajústala a tu país
       - key: DATABASE_URL
