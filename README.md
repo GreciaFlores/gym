@@ -5,8 +5,9 @@ App web (instalable en el celular) para guardar la **rutina semanal** y llevar e
 - **Hoy:** qué día toca, progreso y resumen de la semana.
 - **Semana:** los días de la rutina con su estado (pendiente / en curso / completado).
 - **Hoy:** el día que toca y el **cierre semanal**: semana pasada frente a la semana en curso, día por día, con la carga total y la diferencia. Se puede ver el **total** o el **detalle** (barra + discos, mancuernas).
-- **Día:** movilidad, zona media y trabajo principal, con checks, ejercicios combinados, material, videos, una **ilustración** y las **indicaciones del entrenador** tal cual las escribió. Se elige la **fecha** de la sesión y el **peso levantado** de cada ejercicio (menos movilidad) como **barra + discos**, **mancuernas** (× 2) o **total**; el hip thrust se anota como **barra + cada lado** (× 2). Cada día tiene una caja de **comentarios**. Un botón guarda todo y muestra el **resumen**.
+- **Día:** movilidad, zona media y trabajo principal, con checks, ejercicios combinados, material, videos y las **indicaciones del entrenador** tal cual las escribió. Se elige la **fecha** de la sesión y el **peso levantado** de cada ejercicio (menos movilidad) como **barra + discos**, **mancuernas** (× 2) o **total**; el hip thrust se anota como **barra + cada lado** (× 2). Cada día tiene una caja de **comentarios**; las notas de la semana pasada aparecen destacadas arriba. Un botón guarda todo y muestra el **resumen**.
 - **Excel:** desde "Mi semana" se elige el rango de fechas (o la semana pasada, o todo el historial) y se descarga el registro con el detalle de cada carga.
+- **Recordatorios por correo** si terminas el día y faltan pesos: [docs/recordatorios-por-correo.md](docs/recordatorios-por-correo.md).
 - El peso corporal (`/app/peso/`) sigue en el código pero ya no aparece en el menú.
 - **Peso:** registro semanal, gráfica con media móvil, historial y **descarga en Excel**.
 - Login con usuario y contraseña. Cada usuario ve **solo sus datos** (listo para que un entrenador sume alumnos).
@@ -21,7 +22,7 @@ python manage.py runserver                           # http://127.0.0.1:8000/app
 
 Publicación en producción: [docs/publicar-en-render.md](docs/publicar-en-render.md) (`render.yaml` incluido).
 
-Las ilustraciones de los ejercicios se generan con `python scripts/generar_ilustraciones.py` (SVG en `apptrainer/static/apptrainer/ejercicios/`); la imagen, el tipo de carga y los ajustes de cada ejercicio (por ejemplo, discos por lado) están en `apptrainer/catalogo.py` y se pueden cambiar en `/admin/`.
+El tipo de carga de cada ejercicio (barra, mancuernas, discos por lado o total) está en `apptrainer/catalogo.py` y se puede cambiar en `/admin/`.
 
 Las migraciones son aditivas: aplicarlas no borra ni reescribe el historial (hay un test que lo comprueba).
 

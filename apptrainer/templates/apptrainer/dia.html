@@ -6,6 +6,13 @@
 <h1 class="page-title">{{ dia.titulo }}</h1>
 <p class="page-sub">{{ dia.enfoque }}</p>
 
+{% if nota_anterior %}
+<section class="card nota-destacada" aria-labelledby="nota-ant">
+  <h2 id="nota-ant" class="card-title">📌 Tu nota de la semana pasada <span class="pill">{{ nota_anterior.fecha|date:"D j/n" }}</span></h2>
+  <p>{{ nota_anterior.comentario|linebreaksbr }}</p>
+</section>
+{% endif %}
+
 <form class="date-bar" method="get" action="{% url 'apptrainer:dia' dia.pk %}">
   <label class="date-field" for="fecha">
     <svg class="icon"><use href="#i-semana"/></svg>
@@ -58,44 +65,60 @@
                 </div>
                 {% endif %}
               </div>
-              {% imagen_url e.imagen as src %}
-              {% if src %}<img class="ex-img" src="{{ src }}" alt="{{ e.imagen|descripcion }}" title="{{ e.imagen|descripcion }}" width="72" height="72" loading="lazy">{% endif %}
             </div>
             {% if e.nota %}<p class="ex-note"><span class="ex-note-label">Entrenador</span>{{ e.nota }}</p>{% endif %}
             {% if b.con_peso %}
             <fieldset class="carga {% if e.kg_error %}has-error{% endif %}" data-carga>
               <legend>Peso levantado</legend>
-              <div class="carga-modos">
+              <div class="carga-modos{% if e.modos_ui|length == 1 %} unico{% endif %}">
                 {% for valor, etiqueta in e.modos_ui %}
                 <input type="radio" id="modo_{{ e.pk }}_{{ valor }}" name="modo_{{ e.pk }}" value="{{ valor }}" form="form-guardar" {% if e.carga.modo == valor %}checked{% endif %}>
                 <label for="modo_{{ e.pk }}_{{ valor }}">{{ etiqueta }}</label>
                 {% endfor %}
 
+                {% if 'barra' in e.modos %}
                 <div class="campos campos-barra">
                   <label class="campo"><span>Barra (kg)</span>
                     <input name="barra_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off" placeholder="20" value="{{ e.carga.barra }}" data-campo="barra"></label>
                   {% if e.carga_por_lado %}
-                  <label class="campo"><span>Cada lado (kg)</span>
+                  <label class="campo"><span>Disco de cada lado (kg)</span>
                     <input name="lado_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="{{ e.carga.lado }}" data-campo="lado"></label>
-                  <p class="campo-ayuda">Discos de un solo lado: se cuentan los dos lados (× 2).</p>
+                  <p class="campo-ayuda">Anota el disco de un solo lado: se cuentan los dos lados (× 2).</p>
                   {% else %}
                   <label class="campo"><span>Discos (kg)</span>
                     <input name="discos_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="{{ e.carga.discos }}" data-campo="discos"></label>
                   <p class="campo-ayuda">Discos: la suma de los dos lados.</p>
                   {% endif %}
                 </div>
+                {% endif %}
+                {% if 'lados' in e.modos %}
+                <div class="campos campos-lados">
+                  <label class="campo"><span>Discos de cada lado (kg)</span>
+                    <input name="sololado_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="{{ e.carga.solo_lado }}" data-campo="solo_lado"></label>
+                  <p class="campo-ayuda">Anota los discos de un solo lado: se cuentan los dos lados (× 2).</p>
+                </div>
+                {% endif %}
+                {% if 'mancuernas' in e.modos %}
                 <div class="campos campos-mancuernas">
                   <label class="campo"><span>Por mancuerna (kg)</span>
                     <input name="mancuerna_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="{{ e.carga.mancuerna }}" data-campo="mancuerna"></label>
                   <p class="campo-ayuda">Se cuentan las dos mancuernas (× 2).</p>
                 </div>
+                {% endif %}
+                {% if 'total' in e.modos %}
                 <div class="campos campos-total">
                   <label class="campo"><span>Peso total (kg)</span>
                     <input name="kg_{{ e.pk }}" form="form-guardar" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="{{ e.carga.total }}" data-campo="total"></label>
                 </div>
+                {% endif %}
               </div>
               <p class="carga-total">Total: <b data-total>{% if e.kg is not None %}{{ e.kg|kg }}{% else %}—{% endif %}</b> kg</p>
-              {% if e.previo %}<p class="carga-previo">Anterior: {{ e.previo.detalle }} <span>· {{ e.previo.sesion.fecha|date:"j/n" }}</span></p>{% endif %}
+              {% if e.previo %}
+              <div class="carga-previo">
+                <span class="previo-titulo">Anterior · {{ e.previo.sesion.fecha|date:"j/n" }}</span>
+                <dl>{% for etiqueta, valor in e.previo.lineas %}<div><dt>{{ etiqueta }}</dt><dd>{{ valor }}</dd></div>{% endfor %}</dl>
+              </div>
+              {% endif %}
               {% if e.kg_error %}<p class="field-error" role="alert">{{ e.kg_error }}</p>{% endif %}
             </fieldset>
             {% endif %}

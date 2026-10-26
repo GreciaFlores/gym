@@ -45,7 +45,7 @@ def test_fecha_invalida_o_absurda_usa_hoy(cliente, dia1, basura):
 
 
 def test_marcar_ejercicio_en_otra_fecha_crea_la_sesion_de_esa_fecha(cliente, dia1, usuario):
-    e = ej(dia1, 'Hip thrust')
+    e = ej(dia1, 'Elevaciones de cadera en colchoneta')
     cliente.post(reverse('apptrainer:alternar', args=[e.pk]), {'fecha': manana().isoformat()},
                  HTTP_X_REQUESTED_WITH='fetch')
     assert Sesion.objects.get(usuario=usuario, dia=dia1).fecha == manana()
@@ -60,22 +60,22 @@ def test_pesos_solo_en_zona_media_y_principal(cliente, dia1):
     html = cliente.get(reverse('apptrainer:dia', args=[dia1.pk])).content.decode()
     ids_con_peso = Ejercicio.objects.filter(bloque__dia=dia1).exclude(bloque__tipo='movilidad')
     ids_movilidad = Ejercicio.objects.filter(bloque__dia=dia1, bloque__tipo='movilidad')
-    assert all(f'name="kg_{e.pk}"' in html for e in ids_con_peso)
+    assert all(f'id="modo_{e.pk}_' in html for e in ids_con_peso)   # cada uno con su selector de carga
     assert not any(f'name="kg_{e.pk}"' in html for e in ids_movilidad)
     assert html.count('data-carga') == ids_con_peso.count() == 8
 
 
 def test_guardar_pesos_con_coma_y_punto(cliente, dia1, usuario):
-    r = guardar(cliente, dia1, **{str(ej(dia1, 'Hip thrust').pk): '40,5',
+    r = guardar(cliente, dia1, **{str(ej(dia1, 'Elevaciones de cadera en colchoneta').pk): '40,5',
                                   str(ej(dia1, 'Peso muerto rumano').pk): '25.25'})
     assert r.status_code == 302
     assert r['Location'] == f"{reverse('apptrainer:dia_resumen', args=[dia1.pk])}?fecha={timezone.localdate().isoformat()}"
     pesos = {p.ejercicio.nombre: p.kg for p in PesoEjercicio.objects.all()}
-    assert pesos == {'Hip thrust': Decimal('40.50'), 'Peso muerto rumano': Decimal('25.25')}
+    assert pesos == {'Elevaciones de cadera en colchoneta': Decimal('40.50'), 'Peso muerto rumano': Decimal('25.25')}
 
 
 def test_guardar_actualiza_y_borra_al_vaciar(cliente, dia1):
-    hip, rumano = ej(dia1, 'Hip thrust'), ej(dia1, 'Peso muerto rumano')
+    hip, rumano = ej(dia1, 'Elevaciones de cadera en colchoneta'), ej(dia1, 'Peso muerto rumano')
     guardar(cliente, dia1, **{str(hip.pk): '40', str(rumano.pk): '20'})
     guardar(cliente, dia1, **{str(hip.pk): '42,5', str(rumano.pk): ''})
     assert PesoEjercicio.objects.get().kg == Decimal('42.50')
@@ -83,13 +83,13 @@ def test_guardar_actualiza_y_borra_al_vaciar(cliente, dia1):
 
 
 def test_guardar_sin_pesos_no_crea_sesion_vacia(cliente, dia1):
-    guardar(cliente, dia1, **{str(ej(dia1, 'Hip thrust').pk): ''})
+    guardar(cliente, dia1, **{str(ej(dia1, 'Elevaciones de cadera en colchoneta').pk): ''})
     assert not Sesion.objects.exists()
 
 
 @pytest.mark.parametrize('malo', ['abc', '0', '-5', '501', '1000'])
 def test_peso_invalido_no_guarda_nada_y_muestra_lo_escrito(cliente, dia1, malo):
-    hip, rumano = ej(dia1, 'Hip thrust'), ej(dia1, 'Peso muerto rumano')
+    hip, rumano = ej(dia1, 'Elevaciones de cadera en colchoneta'), ej(dia1, 'Peso muerto rumano')
     r = guardar(cliente, dia1, **{str(hip.pk): '40', str(rumano.pk): malo})
     html = r.content.decode()
     assert r.status_code == 422
@@ -100,25 +100,25 @@ def test_peso_invalido_no_guarda_nada_y_muestra_lo_escrito(cliente, dia1, malo):
 
 def test_kg_de_movilidad_se_ignora(cliente, dia1):
     movilidad = Ejercicio.objects.filter(bloque__dia=dia1, bloque__tipo='movilidad').first()
-    guardar(cliente, dia1, **{str(movilidad.pk): '30', str(ej(dia1, 'Hip thrust').pk): '40'})
-    assert list(PesoEjercicio.objects.values_list('ejercicio__nombre', flat=True)) == ['Hip thrust']
+    guardar(cliente, dia1, **{str(movilidad.pk): '30', str(ej(dia1, 'Elevaciones de cadera en colchoneta').pk): '40'})
+    assert list(PesoEjercicio.objects.values_list('ejercicio__nombre', flat=True)) == ['Elevaciones de cadera en colchoneta']
 
 
 def test_guardar_en_otra_fecha(cliente, dia1, usuario):
-    guardar(cliente, dia1, fecha=manana(), **{str(ej(dia1, 'Hip thrust').pk): '40'})
+    guardar(cliente, dia1, fecha=manana(), **{str(ej(dia1, 'Elevaciones de cadera en colchoneta').pk): '40'})
     assert Sesion.objects.get(usuario=usuario).fecha == manana()
 
 
 def test_peso_anterior_aparece_como_referencia(cliente, dia1):
-    hip = ej(dia1, 'Hip thrust')
+    hip = ej(dia1, 'Elevaciones de cadera en colchoneta')
     ayer = timezone.localdate() - dt.timedelta(days=3)
     guardar(cliente, dia1, fecha=ayer, **{str(hip.pk): '37,5'})
     html = cliente.get(reverse('apptrainer:dia', args=[dia1.pk])).content.decode()
-    assert 'Anterior: 37,5 kg' in html
+    assert '<dt>Peso total</dt><dd>37,5 kg</dd>' in html and 'Anterior · ' in html
     # el valor de hoy no se toma como "anterior" de sí mismo
     guardar(cliente, dia1, **{str(hip.pk): '40'})
     html = cliente.get(reverse('apptrainer:dia', args=[dia1.pk])).content.decode()
-    assert 'Anterior: 37,5 kg' in html and 'value="40"' in html
+    assert '<dd>37,5 kg</dd>' in html and '<dd>40 kg</dd>' not in html and 'value="40"' in html
 
 
 def test_guardar_exige_post_y_login(client, cliente, dia1):
@@ -131,7 +131,7 @@ def test_guardar_exige_post_y_login(client, cliente, dia1):
 # ---------- resumen ----------
 
 def test_resumen_muestra_hechos_y_pesos(cliente, dia1):
-    hip = ej(dia1, 'Hip thrust')
+    hip = ej(dia1, 'Elevaciones de cadera en colchoneta')
     cliente.post(reverse('apptrainer:alternar', args=[hip.pk]), HTTP_X_REQUESTED_WITH='fetch')
     guardar(cliente, dia1, **{str(hip.pk): '42,5'})
     r = cliente.get(reverse('apptrainer:dia_resumen', args=[dia1.pk]))
@@ -166,7 +166,7 @@ def test_semana_tiene_boton_de_excel(cliente, con_rutina):
 
 
 def test_excel_semanal_incluye_hechos_y_pesos(cliente, dia1):
-    hip = ej(dia1, 'Hip thrust')
+    hip = ej(dia1, 'Elevaciones de cadera en colchoneta')
     cliente.post(reverse('apptrainer:alternar', args=[hip.pk]), HTTP_X_REQUESTED_WITH='fetch')
     guardar(cliente, dia1, **{str(hip.pk): '42,5'})
     r = cliente.get(reverse('apptrainer:semana_excel'))
@@ -175,7 +175,7 @@ def test_excel_semanal_incluye_hechos_y_pesos(cliente, dia1):
     wb = _abrir(r)
     filas = list(wb['Registro'].iter_rows(min_row=2, values_only=True))
     assert len(filas) == 12  # todos los ejercicios del día
-    hip_fila = next(f for f in filas if f[4] == 'Hip thrust')
+    hip_fila = next(f for f in filas if f[4] == 'Elevaciones de cadera en colchoneta')
     assert hip_fila[1] == 'Día 1' and hip_fila[3] == 'Trabajo principal' and hip_fila[6] == 'Sí'
     assert hip_fila[7] == 'Total' and hip_fila[12] == 42.5
     rumano = next(f for f in filas if f[4] == 'Peso muerto rumano')
@@ -185,14 +185,14 @@ def test_excel_semanal_incluye_hechos_y_pesos(cliente, dia1):
 
 
 def test_excel_semanal_solo_la_semana_actual_y_todo_el_historial(cliente, dia1, usuario):
-    hip = ej(dia1, 'Hip thrust')
+    hip = ej(dia1, 'Elevaciones de cadera en colchoneta')
     vieja = timezone.localdate() - dt.timedelta(days=21)
     guardar(cliente, dia1, fecha=vieja, **{str(hip.pk): '30'})
     guardar(cliente, dia1, **{str(hip.pk): '40'})
     semana = _abrir(cliente.get(reverse('apptrainer:semana_excel')))
-    assert [f[12] for f in semana['Registro'].iter_rows(min_row=2, values_only=True) if f[4] == 'Hip thrust'] == [40.0]
+    assert [f[12] for f in semana['Registro'].iter_rows(min_row=2, values_only=True) if f[4] == 'Elevaciones de cadera en colchoneta'] == [40.0]
     todo = _abrir(cliente.get(reverse('apptrainer:semana_excel'), {'todo': '1'}))
-    assert sorted(f[12] for f in todo['Registro'].iter_rows(min_row=2, values_only=True) if f[4] == 'Hip thrust') == [30.0, 40.0]
+    assert sorted(f[12] for f in todo['Registro'].iter_rows(min_row=2, values_only=True) if f[4] == 'Elevaciones de cadera en colchoneta') == [30.0, 40.0]
     assert 'historial' in cliente.get(reverse('apptrainer:semana_excel'), {'todo': '1'})['Content-Disposition']
 
 
@@ -204,7 +204,7 @@ def test_excel_semanal_vacio_no_falla(cliente, con_rutina):
 def test_excel_semanal_solo_datos_propios(client, dia1, usuario, otro_usuario):
     from apptrainer.cargas import armar_carga
     services.guardar_pesos(usuario, dia1, timezone.localdate(),
-                           {ej(dia1, 'Hip thrust').pk: armar_carga('total', total=Decimal('40'))})
+                           {ej(dia1, 'Elevaciones de cadera en colchoneta').pk: armar_carga('total', total=Decimal('40'))})
     client.force_login(otro_usuario)
     wb = _abrir(client.get(reverse('apptrainer:semana_excel')))
     assert wb['Registro'].max_row == 1

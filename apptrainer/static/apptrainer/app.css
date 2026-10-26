@@ -246,10 +246,6 @@ button, input { font: inherit; color: inherit; }
 .pill-active { background: var(--lila); color: #fff; }
 .date-long { color: var(--muted); font-weight: 600; text-transform: capitalize; margin: 4px 0 6px; }
 
-/* ---- imagen del ejercicio ---- */
-.ex-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.ex-text { min-width: 0; flex: 1; }
-.ex-img { width: 72px; height: 72px; flex: none; border-radius: 16px; background: var(--lila-soft); object-fit: cover; }
 
 /* ---- peso: barra + discos / mancuernas / total ---- */
 .carga { border: 0; margin: 12px 0 0; padding: 10px 10px 12px; border-radius: 16px; background: #faf7ff; border: 1px solid var(--line); min-width: 0; }
@@ -259,11 +255,12 @@ button, input { font: inherit; color: inherit; }
 .carga-modos > label { padding: 6px 8px; border-radius: 999px; background: #fff; border: 2px solid var(--line); font-weight: 800; font-size: .75rem; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .carga-modos > input:checked + label { background: var(--lila); border-color: var(--lila); color: #fff; }
 .carga-modos > input:focus-visible + label { outline: 3px solid #ffb4da; outline-offset: 2px; }
-.campos { display: none; flex-basis: 100%; margin-top: 8px; gap: 8px; }
+.campos { display: none; flex-basis: 100%; margin-top: 8px; gap: 8px; align-items: end; }
 .carga-modos > input[value="barra"]:checked ~ .campos-barra { display: grid; grid-template-columns: 1fr 1fr; }
 .carga-modos > input[value="mancuernas"]:checked ~ .campos-mancuernas,
+.carga-modos > input[value="lados"]:checked ~ .campos-lados,
 .carga-modos > input[value="total"]:checked ~ .campos-total { display: grid; grid-template-columns: minmax(0, 150px); }
-.campo { display: grid; gap: 3px; min-width: 0; }
+.campo { display: grid; gap: 3px; min-width: 0; align-content: end; }
 .campo span { font-size: .75rem; font-weight: 800; color: var(--muted); }
 .campo input { width: 100%; min-height: 46px; padding: 8px 12px; border-radius: 14px; border: 2px solid var(--line); background: #fff; font-size: 1.05rem; font-weight: 800; text-align: right; }
 .campo input::placeholder { color: #a79fc4; font-weight: 600; }
@@ -271,8 +268,15 @@ button, input { font: inherit; color: inherit; }
 .campo-ayuda { grid-column: 1 / -1; color: var(--muted); font-size: .8rem; }
 .carga-total { margin-top: 8px; font-weight: 700; color: var(--muted); }
 .carga-total b { color: var(--ink); font-size: 1.1rem; }
-.carga-previo { color: var(--muted); font-size: .85rem; margin-top: 2px; }
-.carga-previo span { opacity: .8; }
+.carga-modos.unico > label { display: none; }
+.carga-modos.unico .campos { margin-top: 0; }
+.carga-previo { margin-top: 10px; padding: 8px 10px; border-radius: 12px; background: #fff; border: 1px dashed var(--lila-mid); }
+.previo-titulo { display: block; font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--lila-dark); margin-bottom: 4px; }
+.carga-previo dl { margin: 0; display: grid; gap: 2px; }
+.carga-previo dl > div { display: flex; justify-content: space-between; gap: 10px; font-size: .92rem; }
+.carga-previo dt { color: var(--muted); font-weight: 700; }
+.carga-previo dd { margin: 0; font-weight: 800; color: var(--ink); white-space: nowrap; }
+.carga-previo dl > div:last-child { border-top: 1px solid var(--line); padding-top: 3px; margin-top: 2px; }
 .carga.has-error { border-color: #e0668f; background: #fff5f9; }
 .field-error { color: #b4234f; font-size: .85rem; font-weight: 700; margin-top: 6px; }
 
@@ -340,3 +344,13 @@ a.btn-soft { text-decoration: none; }
 .contador { text-align: right; color: var(--muted); font-size: .8rem; font-weight: 700; margin-top: 4px; }
 .comentario-guardado p { white-space: normal; overflow-wrap: anywhere; }
 .cd-comentario { font-style: italic; margin-top: 2px; overflow-wrap: anywhere; }
+
+/* ---------- notas de la semana pasada (destacadas) ---------- */
+.nota-destacada { background: var(--lemon); border: 2px solid #f0d56a; box-shadow: var(--shadow); }
+.nota-destacada .card-title { color: var(--lemon-ink); margin-bottom: 8px; justify-content: flex-start; flex-wrap: wrap; }
+.nota { background: rgba(255,255,255,.7); border-radius: 14px; padding: 10px 12px; }
+.nota + .nota { margin-top: 8px; }
+.nota-hoy { background: #fff; outline: 3px solid var(--lila-mid); }
+.nota header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 4px; }
+.nota-enfoque { color: var(--muted); font-weight: 700; }
+.nota p, .nota-destacada > p { font-weight: 600; overflow-wrap: anywhere; color: var(--ink); }

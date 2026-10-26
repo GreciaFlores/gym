@@ -11,7 +11,6 @@ from openpyxl import load_workbook
 
 from apptrainer import services
 from apptrainer.cargas import armar_carga, detalle_texto, kg_texto
-from apptrainer.catalogo import CATALOGO, DESCRIPCIONES
 from apptrainer.models import Dia, Ejercicio, PesoEjercicio, Sesion
 
 from .test_dia_pesos import dia1, ej  # noqa: F401  (fixtures y helpers)
@@ -104,7 +103,7 @@ def test_total_de_mancuernas_no_puede_pasar_el_maximo(cliente, dia1):
 
 
 def test_modo_invalido_se_trata_como_total(cliente, dia1):
-    hip = ej(dia1, 'Hip thrust')
+    hip = ej(dia1, 'Elevaciones de cadera en colchoneta')
     guardar_modo(cliente, dia1, **{f'modo_{hip.pk}': 'hackeado', f'kg_{hip.pk}': '40'})
     assert PesoEjercicio.objects.get().modo == 'total'
 
@@ -118,12 +117,12 @@ def test_el_modo_preseleccionado_es_el_habitual_del_ejercicio(cliente, dia1):
 
 
 def test_el_modo_de_la_vez_anterior_manda_sobre_el_habitual(cliente, dia1):
-    plancha = ej(dia1, 'Plancha sobre fitball')
+    plancha = ej(dia1, 'Sentadilla goblet')
     ayer = timezone.localdate() - dt.timedelta(days=2)
     guardar_modo(cliente, dia1, fecha=ayer, **{f'modo_{plancha.pk}': 'mancuernas', f'mancuerna_{plancha.pk}': '5'})
     html = cliente.get(reverse('apptrainer:dia', args=[dia1.pk])).content.decode()
     assert f'id="modo_{plancha.pk}_mancuernas" name="modo_{plancha.pk}" value="mancuernas" form="form-guardar" checked' in html
-    assert 'Anterior: 2 × 5 = 10 kg' in html
+    assert '<dt>Cada mancuerna</dt><dd>5 kg</dd>' in html and '<dt>Total (2 mancuernas)</dt><dd>10 kg</dd>' in html
 
 
 def test_resumen_muestra_el_detalle(cliente, dia1):
@@ -273,27 +272,10 @@ def test_las_indicaciones_se_ven_en_la_pantalla_del_dia(cliente, dia1):
     assert 'Mantengo 3 seg cerrando' in html and 'ex-note-label">Entrenador' in html
 
 
-def test_cada_ejercicio_del_catalogo_tiene_su_imagen_y_descripcion():
-    from pathlib import Path
-    carpeta = Path(__file__).resolve().parents[1] / 'static' / 'apptrainer' / 'ejercicios'
-    for nombre, (imagen, _) in CATALOGO.items():
-        assert (carpeta / f'{imagen}.svg').is_file(), f'falta la imagen de {nombre}'
-        assert DESCRIPCIONES.get(imagen), f'falta la descripción de {imagen}'
-
-
-def test_todos_los_ejercicios_sembrados_tienen_imagen(con_rutina):
-    assert not Ejercicio.objects.filter(bloque__dia__rutina__usuario=con_rutina, imagen='').exists()
-
-
-def test_la_pantalla_del_dia_muestra_las_imagenes(cliente, dia1):
+def test_las_imagenes_de_los_ejercicios_ya_no_existen(cliente, dia1):
     html = cliente.get(reverse('apptrainer:dia', args=[dia1.pk])).content.decode()
-    assert html.count('class="ex-img"') == Ejercicio.objects.filter(bloque__dia=dia1).count() == 12
-    assert 'ejercicios/hip-thrust.svg' in html and 'alt="Espalda alta en el banco' in html
-
-
-def test_imagen_inexistente_no_rompe_la_pagina(cliente, dia1):
-    Ejercicio.objects.filter(bloque__dia=dia1).update(imagen='no-existe')
-    assert cliente.get(reverse('apptrainer:dia', args=[dia1.pk])).status_code == 200
+    assert 'ex-img' not in html and '<img' not in html and 'ejercicios/' not in html
+    assert not hasattr(Ejercicio, 'imagen')
 
 
 # ---------- seed: no borra el historial por accidente ----------

@@ -37,17 +37,18 @@ def test_barra_con_peso_por_lado():
 
 def test_hip_thrust_se_configura_con_barra_y_cada_lado(con_rutina):
     hip = Ejercicio.objects.get(bloque__dia__rutina__usuario=con_rutina, nombre='Hip thrust')
-    assert hip.carga_por_lado is True and hip.modos == ['barra', 'total']
+    assert hip.carga_por_lado is True and hip.modos == ['barra']
     otro = Ejercicio.objects.get(bloque__dia__rutina__usuario=con_rutina, nombre='Peso muerto rumano')
     assert otro.carga_por_lado is False and otro.modos == ['barra', 'mancuernas', 'total']
 
 
-def test_hip_thrust_no_ofrece_mancuernas_y_pide_cada_lado(cliente, dia1):
+def test_hip_thrust_solo_barra_con_disco_de_cada_lado(cliente, dia1):
     hip = ej(dia1, 'Hip thrust')
     html = pagina_dia(cliente, dia1)
-    assert f'id="modo_{hip.pk}_barra"' in html and f'id="modo_{hip.pk}_total"' in html
-    assert f'id="modo_{hip.pk}_mancuernas"' not in html
+    assert f'id="modo_{hip.pk}_barra"' in html
+    assert f'id="modo_{hip.pk}_total"' not in html and f'id="modo_{hip.pk}_mancuernas"' not in html
     assert f'name="lado_{hip.pk}"' in html and f'name="discos_{hip.pk}"' not in html
+    assert 'Disco de cada lado (kg)' in html
     # los demás ejercicios siguen igual
     rumano = ej(dia1, 'Peso muerto rumano')
     assert f'id="modo_{rumano.pk}_mancuernas"' in html and f'name="discos_{rumano.pk}"' in html
@@ -76,11 +77,10 @@ def test_hip_thrust_valida_cada_lado(cliente, dia1):
     assert 'value="20"' in r.content.decode() and 'value="abc"' in r.content.decode()
 
 
-def test_hip_thrust_ignora_mancuernas_enviadas(cliente, dia1):
+def test_hip_thrust_ignora_mancuernas_y_total_enviados(cliente, dia1):
     hip = ej(dia1, 'Hip thrust')
     guardar(cliente, dia1, **{f'modo_{hip.pk}': 'mancuernas', f'mancuerna_{hip.pk}': '12', f'kg_{hip.pk}': '40'})
-    p = PesoEjercicio.objects.get()
-    assert p.modo == 'total' and p.kg == 40 and p.kg_mancuerna is None
+    assert not PesoEjercicio.objects.exists()  # solo se aceptan barra y disco de cada lado
 
 
 def test_hip_thrust_total_maximo(cliente, dia1):
@@ -95,7 +95,7 @@ def test_registro_viejo_de_hip_thrust_sigue_viéndose(cliente, dia1, usuario):
     ayer = timezone.localdate() - __import__('datetime').timedelta(days=3)
     services.guardar_pesos(usuario, dia1, ayer, {hip.pk: armar_carga('barra', barra=D(20), discos=D(30))})
     html = pagina_dia(cliente, dia1)
-    assert 'Anterior: 20 + 30 = 50 kg' in html
+    assert '<dt>Barra</dt><dd>20 kg</dd>' in html and '<dt>Discos (los dos lados)</dt><dd>30 kg</dd>' in html
     services.guardar_pesos(usuario, dia1, ayer, {hip.pk: armar_carga('mancuernas', mancuerna=D(10))})
     html = pagina_dia(cliente, dia1, fecha=ayer.isoformat())
     assert f'id="modo_{hip.pk}_barra" name="modo_{hip.pk}" value="barra" form="form-guardar" checked' in html
@@ -164,7 +164,7 @@ def test_comentario_demasiado_largo_no_guarda_nada_y_conserva_el_texto(cliente, 
 
 
 def test_error_de_peso_no_pierde_el_comentario(cliente, dia1):
-    hip = ej(dia1, 'Hip thrust')
+    hip = ej(dia1, 'Elevaciones de cadera en colchoneta')
     r = guardar(cliente, dia1, comentario='mi nota', **{f'kg_{hip.pk}': 'abc'})
     assert r.status_code == 422 and 'mi nota' in r.content.decode() and not Sesion.objects.exists()
 
@@ -243,7 +243,7 @@ def test_aplicar_migraciones_nuevas_conserva_todo_el_historial():
         assert not m.Sesion.objects.exclude(comentario='').exists()
         assert not m.PesoEjercicio.objects.exclude(kg_por_lado=None).exists()
         hip = m.Ejercicio.objects.get(nombre='Hip thrust')
-        assert hip.modos == ['barra', 'total'] and hip.carga_por_lado is True and hip.nota == 'Barra normal'
+        assert hip.modos == ['barra'] and hip.carga_por_lado is True and hip.nota == 'Barra normal'
         assert m.PesoEjercicio.objects.filter(ejercicio=hip).first().detalle == '20 + 30 = 50 kg'
     finally:
         final = MigrationExecutor(connection)

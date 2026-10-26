@@ -8,9 +8,11 @@ from django.db.models import Q
 CARGA_TOTAL = 'total'
 CARGA_BARRA = 'barra'
 CARGA_MANCUERNAS = 'mancuernas'
+CARGA_LADOS = 'lados'
 TIPOS_CARGA = [
     (CARGA_BARRA, 'Barra + discos'),
     (CARGA_MANCUERNAS, 'Mancuernas'),
+    (CARGA_LADOS, 'Discos por lado'),
     (CARGA_TOTAL, 'Total'),
 ]
 
@@ -124,13 +126,9 @@ class Ejercicio(models.Model):
         'tipo de carga habitual', max_length=10, choices=TIPOS_CARGA, default=CARGA_TOTAL,
         help_text='Cómo se anota el peso por defecto: barra + discos, mancuernas o total.',
     )
-    imagen = models.CharField(
-        max_length=60, blank=True,
-        help_text='Nombre del archivo en static/apptrainer/ejercicios/ (sin .svg).',
-    )
     modos_permitidos = models.CharField(
         'tipos de carga disponibles', max_length=40, default='barra,mancuernas,total',
-        help_text='Separados por coma: barra, mancuernas, total.',
+        help_text='Separados por coma: barra, mancuernas, lados, total.',
     )
     carga_por_lado = models.BooleanField(
         'discos por lado', default=False,
@@ -193,7 +191,8 @@ class PesoEjercicio(models.Model):
 
     `kg` es siempre el total levantado. Según `modo` se guarda además el detalle:
     barra + discos (`kg_barra`, `kg_discos` = suma de ambos lados), barra + cada lado
-    (`kg_barra`, `kg_por_lado`, cuenta x2) o por mancuerna (`kg_mancuerna`, cuenta x2).
+    (`kg_barra`, `kg_por_lado`, cuenta x2), solo discos por lado (`kg_por_lado`, cuenta x2)
+    o por mancuerna (`kg_mancuerna`, cuenta x2).
     """
 
     sesion = models.ForeignKey(Sesion, on_delete=models.CASCADE, related_name='pesos')
@@ -221,6 +220,13 @@ class PesoEjercicio(models.Model):
 
     def __str__(self):
         return f'{self.ejercicio} · {self.kg} kg'
+
+    @property
+    def lineas(self):
+        """El mismo detalle, una línea por dato: [("Barra", "20 kg"), ("Total", "50 kg")]."""
+        from .cargas import lineas_detalle
+        return lineas_detalle(
+            self.modo, self.kg_barra, self.kg_discos, self.kg_mancuerna, self.kg, self.kg_por_lado)
 
     @property
     def detalle(self):
@@ -252,3 +258,25 @@ class RegistroPeso(models.Model):
 
     def __str__(self):
         return f'{self.usuario} · {self.fecha} · {self.kg} kg'
+
+
+class Recordatorio(models.Model):
+    """Correo de recordatorio enviado: evita mandar dos veces el mismo día de entrenamiento."""
+
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='recordatorios')
+    dia = models.ForeignKey(Dia, on_delete=models.CASCADE, related_name='recordatorios')
+    fecha = models.DateField()
+    enviado_en = models.DateTimeField(auto_now_add=True)
+    pendientes = models.TextField('ejercicios sin peso', blank=True)
+
+    class Meta:
+        ordering = ['-fecha']
+        verbose_name = 'recordatorio enviado'
+        verbose_name_plural = 'recordatorios enviados'
+        constraints = [
+            models.UniqueConstraint(fields=['usuario', 'dia', 'fecha'], name='recordatorio_unico')
+        ]
+
+    def __str__(self):
+        return f'{self.usuario} · {self.dia.titulo} · {self.fecha}'

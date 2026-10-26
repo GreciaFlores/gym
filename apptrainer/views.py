@@ -15,11 +15,13 @@ from django.views.decorators.http import require_GET, require_POST
 from . import services
 from .cargas import armar_carga, kg_texto
 from .forms import KgField, PesoForm
-from .models import CARGA_BARRA, CARGA_MANCUERNAS, CARGA_TOTAL, TIPOS_CARGA, Bloque, Dia, Ejercicio, RegistroPeso
+from .models import CARGA_BARRA, CARGA_LADOS, CARGA_MANCUERNAS, CARGA_TOTAL, Bloque, Dia, Ejercicio, RegistroPeso
 
 XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 MAX_COMENTARIO = 1000
-ETIQUETAS_MODO = [(CARGA_BARRA, 'Barra'), (CARGA_MANCUERNAS, 'Mancuernas'), (CARGA_TOTAL, 'Total')]
+ETIQUETAS_MODO = [
+    (CARGA_BARRA, 'Barra'), (CARGA_MANCUERNAS, 'Mancuernas'), (CARGA_LADOS, 'Discos por lado'), (CARGA_TOTAL, 'Total'),
+]
 
 
 def health(request):
@@ -48,7 +50,8 @@ def _carga_para_mostrar(e, guardado, previo, escritos):
     if escritos is not None:  # se volvió a mostrar tras un error: respeta lo tipeado
         return {
             'modo': escritos['modo'], 'total': escritos['total'], 'barra': escritos['barra'],
-            'discos': escritos['discos'], 'lado': escritos['lado'], 'mancuerna': escritos['mancuerna'],
+            'discos': escritos['discos'], 'lado': escritos['lado'], 'solo_lado': escritos['solo_lado'],
+            'mancuerna': escritos['mancuerna'],
         }
     modo = guardado.modo if guardado else previo.modo if previo else e.carga_habitual
     if modo not in e.modos:  # p. ej. un registro viejo con un tipo que el ejercicio ya no ofrece
@@ -59,7 +62,8 @@ def _carga_para_mostrar(e, guardado, previo, escritos):
         'total': kg_texto(base.kg) if base and base.modo == CARGA_TOTAL else '',
         'barra': kg_texto(base.kg_barra) if base else '',
         'discos': kg_texto(base.kg_discos) if base else '',
-        'lado': kg_texto(base.kg_por_lado) if base else '',
+        'lado': kg_texto(base.kg_por_lado) if base and base.modo == CARGA_BARRA else '',
+        'solo_lado': kg_texto(base.kg_por_lado) if base and base.modo == CARGA_LADOS else '',
         'mancuerna': kg_texto(base.kg_mancuerna) if base else '',
     }
 
@@ -109,6 +113,7 @@ def _contexto_dia(usuario, dia, fecha, escritos=None, errores=None, comentario=N
         'n_hechos': n_hechos, 'total': total,
         'porcentaje': round(100 * n_hechos / total) if total else 0,
         'comentario': comentario, 'max_comentario': MAX_COMENTARIO,
+        'nota_anterior': services.comentario_semana_anterior(usuario, dia, fecha),
         'hoy_iso': hoy.isoformat(), 'manana_iso': (hoy + dt.timedelta(days=1)).isoformat(),
         'es_hoy': fecha == hoy, 'es_manana': fecha == hoy + dt.timedelta(days=1),
     }
@@ -130,7 +135,10 @@ def hoy(request):
     if rutina:
         dia = services.dia_de_hoy(rutina, fecha)
         hechas, total_dias = services.resumen_semana(usuario, rutina, fecha)
-        contexto.update(hechas=hechas, total_dias=total_dias, cierre=services.cierre_semanal(usuario, rutina, fecha))
+        contexto.update(
+            hechas=hechas, total_dias=total_dias, cierre=services.cierre_semanal(usuario, rutina, fecha),
+            notas=services.comentarios_semana_pasada(usuario, rutina, fecha),
+        )
         if dia:
             total = services.total_ejercicios(dia)
             n_hechos = len(services.hechos_de(usuario, dia, fecha))
@@ -211,6 +219,7 @@ def dia_guardar(request, pk):
             'barra': request.POST.get(f'barra_{e.pk}', '').strip(),
             'discos': request.POST.get(f'discos_{e.pk}', '').strip(),
             'lado': request.POST.get(f'lado_{e.pk}', '').strip(),
+            'solo_lado': request.POST.get(f'sololado_{e.pk}', '').strip(),
             'mancuerna': request.POST.get(f'mancuerna_{e.pk}', '').strip(),
         }
         escritos[e.pk] = crudo
@@ -218,12 +227,14 @@ def dia_guardar(request, pk):
         usados = {
             CARGA_BARRA: ('barra', 'lado') if e.carga_por_lado else ('barra', 'discos'),
             CARGA_MANCUERNAS: ('mancuerna',),
+            CARGA_LADOS: ('solo_lado',),
             CARGA_TOTAL: ('total',),
         }[modo]
         try:
             limpios = {nombre: campo.clean(crudo[nombre]) for nombre in usados}
-            if 'lado' in limpios:
-                limpios['por_lado'] = limpios.pop('lado')
+            for nombre in ('lado', 'solo_lado'):
+                if nombre in limpios:
+                    limpios['por_lado'] = limpios.pop(nombre)
             cargas[e.pk] = armar_carga(modo, lados=e.carga_por_lado, **limpios)
         except ValidationError as exc:
             errores[e.pk] = exc.messages[0]

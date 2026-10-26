@@ -12,6 +12,21 @@
     Cuando tu entrenador (o tú) cargue tu plan semanal, aparecerá aquí.
   </section>
 {% else %}
+  {% if notas %}
+  <section class="card nota-destacada" aria-labelledby="notas-ant">
+    <h2 id="notas-ant" class="card-title">📌 Tus notas de la semana pasada</h2>
+    {% for n in notas %}
+    <article class="nota {% if n.es_hoy %}nota-hoy{% endif %}">
+      <header>
+        <b>{{ n.dia.titulo }}</b>{% if n.dia.enfoque %}<span class="nota-enfoque"> · {{ n.dia.enfoque }}</span>{% endif %}
+        <span class="pill">{{ n.fecha|date:"D j/n" }}</span>{% if n.es_hoy %}<span class="pill pill-lemon">Hoy toca</span>{% endif %}
+      </header>
+      <p>{{ n.comentario|linebreaksbr }}</p>
+    </article>
+    {% endfor %}
+  </section>
+  {% endif %}
+
   {% if dia %}
     <section class="card hero">
       <p class="eyebrow">Hoy toca</p>

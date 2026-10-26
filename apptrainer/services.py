@@ -105,7 +105,7 @@ def ultimos_pesos(usuario, dia, fecha):
     ultimos = {}
     registros = PesoEjercicio.objects.filter(
         sesion__usuario=usuario, ejercicio__bloque__dia=dia, sesion__fecha__lt=fecha
-    ).order_by('-sesion__fecha')
+    ).select_related('sesion').order_by('-sesion__fecha')
     for p in registros:
         ultimos.setdefault(p.ejercicio_id, p)
     return ultimos
@@ -139,6 +139,43 @@ def guardar_pesos(usuario, dia, fecha, cargas, comentario=None):
                 },
             )
     return sesion
+
+
+def _semana_anterior(fecha):
+    """(lunes, domingo) de la semana anterior a la de `fecha`."""
+    lunes = lunes_de(fecha)
+    return lunes - dt.timedelta(days=7), lunes - dt.timedelta(days=1)
+
+
+def comentarios_semana_pasada(usuario, rutina, hoy):
+    """Los comentarios que dejaste la semana pasada, uno por día de la rutina (el más
+    reciente), con el día que toca hoy primero. [{dia, fecha, comentario, es_hoy}]"""
+    desde, hasta = _semana_anterior(hoy)
+    sesiones = (
+        Sesion.objects.filter(usuario=usuario, dia__rutina=rutina, fecha__range=(desde, hasta))
+        .exclude(comentario='').select_related('dia').order_by('dia__orden', '-fecha')
+    )
+    hoy_dia = dia_de_hoy(rutina, hoy)
+    notas, vistos = [], set()
+    for sesion in sesiones:
+        if sesion.dia_id in vistos:
+            continue
+        vistos.add(sesion.dia_id)
+        notas.append({
+            'dia': sesion.dia, 'fecha': sesion.fecha, 'comentario': sesion.comentario,
+            'es_hoy': bool(hoy_dia and hoy_dia.pk == sesion.dia_id),
+        })
+    return sorted(notas, key=lambda n: not n['es_hoy'])
+
+
+def comentario_semana_anterior(usuario, dia, fecha):
+    """El comentario de este mismo día en la semana anterior a `fecha` (o None)."""
+    desde, hasta = _semana_anterior(fecha)
+    sesion = (
+        Sesion.objects.filter(usuario=usuario, dia=dia, fecha__range=(desde, hasta))
+        .exclude(comentario='').order_by('-fecha').first()
+    )
+    return {'fecha': sesion.fecha, 'comentario': sesion.comentario} if sesion else None
 
 
 def comentario_de(usuario, dia, fecha):

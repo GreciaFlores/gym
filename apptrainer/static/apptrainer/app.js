@@ -55,6 +55,7 @@
       if (bloque.querySelector('[data-campo=lado]')) { var l = v('lado'); return (b === null && l === null) ? null : (b || 0) + 2 * (l || 0); }
       var d = v('discos'); return (b === null && d === null) ? null : (b || 0) + (d || 0);
     }
+    if (modo === 'lados') { var sl = v('solo_lado'); return sl === null ? null : sl * 2; }
     if (modo === 'mancuernas') { var m = v('mancuerna'); return m === null ? null : m * 2; }
     return v('total');
   }

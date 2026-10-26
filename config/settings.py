@@ -180,3 +180,22 @@ LOGGING = {
     'handlers': {'console': {'class': 'logging.StreamHandler'}},
     'root': {'handlers': ['console'], 'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO')},
 }
+
+# --- Correo (recordatorios) ---
+# Sin EMAIL_HOST (desarrollo) los correos se imprimen en la consola.
+EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('1', 'true', 'yes')
+EMAIL_BACKEND = (
+    'django.core.mail.backends.smtp.EmailBackend' if EMAIL_HOST
+    else 'django.core.mail.backends.console.EmailBackend'
+)
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL') or EMAIL_HOST_USER or 'AppTrainer <noreply@localhost>'
+EMAIL_TIMEOUT = 20
+
+# Hora local (0-23) desde la cual se avisa si faltan los pesos del día.
+RECORDATORIO_HORA = int(os.environ.get('RECORDATORIO_HORA', 21))
+# Dirección pública de la app, para los enlaces de los correos.
+APP_URL = os.environ.get('APP_URL') or os.environ.get('RENDER_EXTERNAL_URL', '')

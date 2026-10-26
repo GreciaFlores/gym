@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Bloque, Dia, Ejercicio, EjercicioHecho, PesoEjercicio, RegistroPeso, Rutina, Sesion
+from .models import Bloque, Dia, Ejercicio, EjercicioHecho, PesoEjercicio, Recordatorio, RegistroPeso, Rutina, Sesion
 
 
 class DiaInline(admin.TabularInline):
@@ -18,7 +18,8 @@ class BloqueInline(admin.TabularInline):
 class EjercicioInline(admin.StackedInline):
     model = Ejercicio
     extra = 0
-    fields = ['orden', 'nombre', 'prescripcion', 'grupo', 'material', 'url_video', 'nota']
+    fields = ['orden', 'nombre', 'prescripcion', 'grupo', 'material', 'url_video', 'nota',
+              'carga_habitual', 'modos_permitidos', 'carga_por_lado']
 
 
 @admin.register(Rutina)
@@ -65,3 +66,14 @@ class RegistroPesoAdmin(admin.ModelAdmin):
     list_display = ['usuario', 'fecha', 'kg', 'nota']
     list_filter = ['usuario']
     date_hierarchy = 'fecha'
+
+
+@admin.register(Recordatorio)
+class RecordatorioAdmin(admin.ModelAdmin):
+    list_display = ['usuario', 'dia', 'fecha', 'enviado_en']
+    list_filter = ['fecha']
+    search_fields = ['usuario__username']
+    readonly_fields = ['usuario', 'dia', 'fecha', 'enviado_en', 'pendientes']
+
+    def has_add_permission(self, request):
+        return False
