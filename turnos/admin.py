@@ -129,6 +129,7 @@ class ClaseAdmin(admin.ModelAdmin):
             path('recurrentes/', vista(self.recurrentes), name='turnos_clase_recurrentes'),
             path('hoy/', vista(self.clases_hoy), name='turnos_clase_hoy'),
             path('hoy/<int:pk>/qr/', vista(self.mostrar_qr), name='turnos_clase_qr'),
+            path('qr-actual/', vista(self.qr_actual), name='turnos_clase_qr_actual'),
         ] + super().get_urls()
 
     def clases_hoy(self, request):
@@ -159,18 +160,41 @@ class ClaseAdmin(admin.ModelAdmin):
             self.message_user(request, 'Solo se muestra el QR de clases abiertas de hoy.',
                               messages.ERROR)
             return redirect('admin:turnos_clase_hoy')
+        return render(request, 'admin/turnos/qr.html', {
+            **self.admin_site.each_context(request), 'qr': self._datos_qr(request, clase),
+            'title': f'QR · {clase}', 'opts': self.model._meta,
+        })
+
+    def _datos_qr(self, request, clase):
         # URL absoluta: respeta host y esquema (https detrás de proxy con DJANGO_BEHIND_PROXY).
         url = request.build_absolute_uri(reverse('checkin', args=[clase.pk]))
         url += '?' + urlencode({'code': codigo_checkin(clase)})
-        qr_svg = mark_safe(segno.make(url, error='m').svg_inline(scale=1, border=2, omitsize=True))
         desde, hasta = ventana_checkin(clase)
-        return render(request, 'admin/turnos/qr.html', {
-            **self.admin_site.each_context(request), 'clase': clase, 'url': url,
-            'codigo': codigo_checkin(clase), 'qr_svg': qr_svg,
+        return {
+            'clase': clase, 'url': url, 'codigo': codigo_checkin(clase),
+            'qr_svg': mark_safe(segno.make(url, error='m').svg_inline(
+                scale=1, border=2, omitsize=True)),
             'desde': timezone.localtime(desde), 'hasta': timezone.localtime(hasta),
-            'consumos': clase.movimientos.filter(tipo=Movimiento.CONSUMO).select_related('alumno')
-                             .order_by('fecha'),
-            'title': f'QR · {clase}', 'opts': self.model._meta,
+            'consumos': clase.movimientos.filter(tipo=Movimiento.CONSUMO)
+                             .select_related('alumno').order_by('fecha'),
+        }
+
+    def qr_actual(self, request):
+        """QR de las clases de hoy con la ventana de check-in abierta ahora (para dejar abierto)."""
+        if not self.has_view_permission(request):
+            raise PermissionDenied
+        ahora = timezone.now()
+        abiertas, proxima = [], None
+        clases = Clase.objects.filter(fecha=timezone.localdate(), estado=Clase.ABIERTA)
+        for clase in clases.order_by('hora_inicio'):
+            desde, hasta = ventana_checkin(clase)
+            if desde <= ahora <= hasta:
+                abiertas.append(self._datos_qr(request, clase))
+            elif ahora < desde and proxima is None:
+                proxima = {'clase': clase, 'desde': timezone.localtime(desde)}
+        return render(request, 'admin/turnos/qr_actual.html', {
+            **self.admin_site.each_context(request), 'qrs': abiertas, 'proxima': proxima,
+            'title': 'QR actual', 'opts': self.model._meta,
         })
 
     def recurrentes(self, request):

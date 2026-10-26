@@ -81,6 +81,7 @@ Incluye una clase completa, una con 2 lugares libres, clases pasadas, una cancel
 
 ## Check-in con QR
 
+- Para dejarlo abierto todo el día en el celular del entrenador: **QR actual (dejar abierto)** en el índice del admin. Muestra el QR de la(s) clase(s) con la ventana abierta (dos lado a lado si se solapan), o "Próxima clase HH:MM, el QR aparece a las HH:MM", y cambia solo cada 15 s.
 1. En el admin, **Clases de hoy** (link en el índice) → **Mostrar QR**. Pantalla pensada para el celular: QR grande, código de 4 caracteres, alumnos que ya hicieron check-in; se refresca cada 15 s.
 2. El alumno escanea el QR → `/checkin/<clase>/?code=XXXX` → se identifica con su DNI (si hace falta) → **Confirmar check-in** (descuenta 1 clase). Sin QR: `/checkin/` y tipear el código.
 3. El código es válido desde 30 min antes del inicio hasta el fin de la clase. Se firma con `CHECKIN_SECRET` (obligatoria si `DJANGO_DEBUG=False`).

@@ -1,0 +1,15 @@
+{% extends "admin/base_site.html" %}
+{% block extrahead %}{{ block.super }}<meta http-equiv="refresh" content="15">
+{% include "admin/turnos/_qr_estilos.html" %}{% endblock %}
+{% block content %}
+{% if qrs %}
+<div class="qr-grid">
+  {% for qr in qrs %}{% include "admin/turnos/_qr_clase.html" %}{% endfor %}
+</div>
+{% elif proxima %}
+<p class="qr-aviso">Próxima clase <strong>{{ proxima.clase.hora_inicio|time:"H:i" }}</strong>, el QR aparece a las <strong>{{ proxima.desde|time:"H:i" }}</strong>.</p>
+{% else %}
+<p class="qr-aviso">No quedan clases con check-in hoy.</p>
+{% endif %}
+<p style="text-align:center;margin-top:16px"><a href="{% url 'admin:turnos_clase_hoy' %}">Clases de hoy</a> · se actualiza sola cada 15 s</p>
+{% endblock %}

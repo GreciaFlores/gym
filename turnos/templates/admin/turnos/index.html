@@ -1,5 +1,8 @@
 {% extends "admin/index.html" %}
 {% block content %}
-<p style="margin:0 0 16px"><a href="{% url 'admin:turnos_clase_hoy' %}" class="button" style="padding:10px 16px;font-size:1rem">Clases de hoy · QR de check-in</a></p>
+<p style="margin:0 0 16px">
+  <a href="{% url 'admin:turnos_clase_qr_actual' %}" class="button" style="display:inline-block;padding:14px 22px;font-size:1.25rem;font-weight:700;background:#0a7d33;color:#fff">QR actual (dejar abierto)</a>
+  <a href="{% url 'admin:turnos_clase_hoy' %}" class="button" style="padding:10px 16px;font-size:1rem;margin-left:8px">Clases de hoy · QR de check-in</a>
+</p>
 {{ block.super }}
 {% endblock %}

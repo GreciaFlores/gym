@@ -1,0 +1,15 @@
+<div class="qr-card" data-qr-clase="{{ qr.clase.pk }}">
+  <h2 class="qr-hora">{{ qr.clase.hora_inicio|time:"H:i" }}</h2>
+  <p>{{ qr.clase.fecha|date:"l d/m" }} · check-in de {{ qr.desde|time:"H:i" }} a {{ qr.hasta|time:"H:i" }}</p>
+  {{ qr.qr_svg }}
+  <p>Si no podés escanear, entrá a <strong>/checkin/</strong> y escribí:</p>
+  <div class="qr-codigo">{{ qr.codigo }}</div>
+  <p class="qr-url">{{ qr.url }}</p>
+
+  <h3 style="margin-top:24px">Ya hicieron check-in ({{ qr.consumos|length }})</h3>
+  {% for m in qr.consumos %}
+  <p>{{ m.fecha|date:"H:i" }} · {{ m.alumno.nombre }} {{ m.alumno.apellido }}</p>
+  {% empty %}
+  <p>Todavía nadie.</p>
+  {% endfor %}
+</div>
