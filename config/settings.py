@@ -26,12 +26,23 @@ load_dotenv(BASE_DIR / '.env')
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-insecure-key-cambiar-en-produccion')
+DEV_SECRET_KEY = 'dev-insecure-key-cambiar-en-produccion'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') or DEV_SECRET_KEY
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes')
 
+if not DEBUG and SECRET_KEY == DEV_SECRET_KEY:
+    raise ImproperlyConfigured('Definí DJANGO_SECRET_KEY cuando DJANGO_DEBUG=False.')
+
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h.strip()]
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()]
+
+# Render expone el dominio público del servicio en esta variable.
+_render_host = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+if _render_host:
+    ALLOWED_HOSTS.append(_render_host)
+    CSRF_TRUSTED_ORIGINS.append(f'https://{_render_host}')
 
 
 # Application definition
@@ -44,6 +55,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "turnos",
+    "apptrainer",
 ]
 
 MIDDLEWARE = [
@@ -109,7 +121,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'es-ar'
 
-TIME_ZONE = 'America/Argentina/Buenos_Aires'
+TIME_ZONE = os.environ.get('DJANGO_TIME_ZONE', 'America/Argentina/Buenos_Aires')
 
 USE_I18N = True
 
@@ -120,15 +132,17 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
-
-# WhiteNoise sirve los estáticos en producción. El storage con manifiesto exige haber corrido
-# `collectstatic`, por eso solo se usa con DEBUG=False (desarrollo y tests usan el storage por defecto).
-if not DEBUG:
-    STORAGES = {
-        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
-    }
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": (
+            "django.contrib.staticfiles.storage.StaticFilesStorage"
+            if DEBUG
+            else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        )
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -144,22 +158,33 @@ PRECIO_CLASE_DEFAULT = 14000
 DURACION_CLASE_DEFAULT = 60
 CUPO_DEFAULT = 5
 
-# Detrás de un proxy TLS (Render): confía en X-Forwarded-Proto para saber que la request es https.
-# Sin esto, las URLs absolutas salen con http:// y los POST pueden fallar por CSRF.
+# --- AppTrainer: login ---
+LOGIN_URL = 'apptrainer:login'
+LOGIN_REDIRECT_URL = 'apptrainer:hoy'
+LOGOUT_REDIRECT_URL = 'apptrainer:login'
+
+# --- Producción (DJANGO_DEBUG=False): HTTPS y cookies seguras ---
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SECURE_REDIRECT_EXEMPT = [r'^healthz/?$']
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = int(os.environ.get('DJANGO_HSTS_SECONDS', 31536000))
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = 'same-origin'
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {'console': {'class': 'logging.StreamHandler'}},
+    'root': {'handlers': ['console'], 'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO')},
+}
+
+# DJANGO_BEHIND_PROXY: confía en X-Forwarded-Proto también con DEBUG=True (con DEBUG=False,
+# el bloque de producción de arriba ya lo activa siempre).
 if os.environ.get('DJANGO_BEHIND_PROXY', '').lower() in ('1', 'true', 'yes'):
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-CSRF_TRUSTED_ORIGINS = [
-    o.strip() for o in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()
-]
-
-# Render inyecta RENDER_EXTERNAL_HOSTNAME (ej. mi-app.onrender.com): se suma solo a los hosts
-# y orígenes CSRF permitidos, además de lo que venga en las variables DJANGO_*.
-RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
-if RENDER_EXTERNAL_HOSTNAME:
-    if RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
-        ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
-    if f'https://{RENDER_EXTERNAL_HOSTNAME}' not in CSRF_TRUSTED_ORIGINS:
-        CSRF_TRUSTED_ORIGINS.append(f'https://{RENDER_EXTERNAL_HOSTNAME}')
 
 # Secreto para firmar el código de check-in de cada clase.
 # Solo en desarrollo (DEBUG=True) hay un valor por defecto; en producción es obligatorio.
