@@ -1,5 +1,6 @@
 # Blueprint de STAGING. Se llama render.staging.yaml (no render.yaml) para no mezclarse con el
-# Blueprint de producción (apptrainer + apptrainer-db). Ver README: "Deploy staging en Render".
+# Blueprint de producción (apptrainer + apptrainer-db). Mismas variables que producción, más las de
+# check-in y las de datos de prueba. Ver README: "Deploy staging en Render".
 services:
   - type: web
     name: apptrainer-staging
@@ -7,21 +8,26 @@ services:
     plan: free
     region: oregon
     branch: feature/checkin-qr
-    buildCommand: ./build.sh
-    startCommand: gunicorn config.wsgi:application --workers 2 --access-logfile -
+    buildCommand: ./build.staging.sh
+    startCommand: gunicorn config.wsgi:application --workers 2 --threads 2 --timeout 60 --access-logfile -
+    healthCheckPath: /healthz
     envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: apptrainer-staging-db
-          property: connectionString
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: DJANGO_DEBUG
+        value: "False"
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: CHECKIN_SECRET
         generateValue: true
-      - key: DJANGO_DEBUG
-        value: "False"
+      - key: DJANGO_TIME_ZONE
+        value: America/Argentina/Buenos_Aires
       - key: DJANGO_BEHIND_PROXY
         value: "True"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: apptrainer-staging-db
+          property: connectionString
       - key: SEED_DEMO
         value: "True"
       - key: DJANGO_SUPERUSER_USERNAME
